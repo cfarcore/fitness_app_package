@@ -179,6 +179,16 @@ esercizi_df = carica_esercizi()
 test_df = carica_test()
 benchmark_df = carica_benchmark()
 wod_df = carica_wod()
+#PULSANTE REFRESH NELLA SIDEBAR
+with st.sidebar:
+    if st.button("🔄 Refresh Dati"):
+        aggiorna_tutti_i_dati()
+        utenti_df = carica_utenti()
+        esercizi_df = carica_esercizi()
+        test_df = carica_test()
+        benchmark_df = carica_benchmark()
+        wod_df = carica_wod()
+        st.success("✅ Dati aggiornati con successo!")
 
 # Login
 if not st.session_state.logged_in:
@@ -1632,8 +1642,6 @@ elif pagina == "👤 Profilo Atleta":
 
         salva_su_google_sheets(utenti_df, "utenti", "utenti")
         st.success("✅ Modifiche salvate con successo!")
-
-
 
 # Pagine Coach
 if is_utente_valido() and utente['ruolo'] == 'coach':

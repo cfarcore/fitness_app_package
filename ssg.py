@@ -1563,7 +1563,6 @@ elif pagina == "📊 Profilo Fitness per Area":
         st.plotly_chart(fig, use_container_width=True)
 
 # Pagina: Profilo Atleta
-# Pagina: Profilo Atleta
 elif pagina == "👤 Profilo Atleta":
     st.title("Profilo Atleta")
 
@@ -1583,30 +1582,19 @@ elif pagina == "👤 Profilo Atleta":
         st.write(f"**Genere:** {atleta['genere'].iloc[0]}")
 
     st.write("### Modifica i tuoi dati:")
-
     if atleta.empty:
         data_nascita_default = datetime.date(2000, 1, 1)
         peso_default = 70.0
         genere_default = "Maschio"
     else:
-        # Data di nascita
         data_nascita_raw = atleta['data_nascita'].iloc[0]
-        try:
-            data_nascita_default = pd.to_datetime(data_nascita_raw).date() if pd.notnull(data_nascita_raw) else datetime.date(2000, 1, 1)
-        except Exception:
-            data_nascita_default = datetime.date(2000, 1, 1)
-        # Peso
+        data_nascita_default = pd.to_datetime(data_nascita_raw).date() if pd.notnull(data_nascita_raw) else datetime.date(2000, 1, 1)
+
         peso_raw = atleta['peso'].iloc[0]
-        try:
-            peso_default = float(peso_raw) if pd.notnull(peso_raw) else 70.0
-        except Exception:
-            peso_default = 70.0
-        # Genere
-        try:
-            genere_raw = atleta['genere'].iloc[0]
-            genere_default = genere_raw if genere_raw in ["Maschio", "Femmina", "Altro"] else "Maschio"
-        except Exception:
-            genere_default = "Maschio"
+        peso_default = float(peso_raw) if pd.notnull(peso_raw) else 70.0
+
+        genere_raw = atleta['genere'].iloc[0]
+        genere_default = genere_raw if genere_raw in ["Maschio", "Femmina", "Altro"] else "Maschio"
 
     nuova_data_nascita = st.date_input(
         "Data di nascita",
@@ -1642,9 +1630,9 @@ elif pagina == "👤 Profilo Atleta":
             'genere'
         ] = nuovo_genere
 
-        # Salva su Google Sheets
         salva_su_google_sheets(utenti_df, "utenti", "utenti")
         st.success("✅ Modifiche salvate con successo!")
+
 
 
 # Pagine Coach

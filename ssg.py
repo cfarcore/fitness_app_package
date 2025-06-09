@@ -180,9 +180,6 @@ test_df = carica_test()
 benchmark_df = carica_benchmark()
 wod_df = carica_wod()
 
-
-
-# Login
 # Login
 if not st.session_state.logged_in:
     ruolo = st.selectbox("Seleziona il tuo ruolo", ["atleta", "coach"])
@@ -707,6 +704,7 @@ def scrivi_su_google_sheet(sheet_name, dataframe):
 utente = st.session_state.get("utente", None)
 
 # Pagina: Inserisci nuovo test
+# Pagina: Inserisci nuovo test
 if pagina == "➕ Inserisci nuovo test":
     st.subheader("➕ Inserisci un nuovo test")
     # Selezione categoria prima di esercizio
@@ -739,23 +737,13 @@ if pagina == "➕ Inserisci nuovo test":
         st.error("Peso corporeo non valido. Inserisci un valore numerico maggiore di 0.")
         st.stop()
 
-    # Verifica che peso_corporeo sia valido e numerico
-    try:
-        peso_corporeo = float(peso_corporeo) if peso_corporeo is not None else None
-    except (ValueError, TypeError):
-        peso_corporeo = None
-    # Aggiungi un controllo per evitare errori
-    if peso_corporeo is None or not isinstance(peso_corporeo, (int, float)) or peso_corporeo <= 0:
-        st.error("Peso corporeo non valido. Inserisci un valore numerico maggiore di 0.")
-        st.stop()
-
     # Verifica che peso_corporeo sia valido prima di usarlo
     if tipo_valore == "kg_rel" and peso_corporeo > 0:
         relativo = round(float(valore) / peso_corporeo, 2)
     else:
         relativo = None
 
-# Salva un nuovo test
+    # Salva un nuovo test
     if st.button("Salva test"):
         nuovo_test = {
             "nome": nome_atleta,
@@ -780,10 +768,12 @@ if pagina == "➕ Inserisci nuovo test":
         # Calcolo valore attuale
         if tipo_valore == "tempo":
             val_attuale = int(minuti) * 60 + int(secondi)
-        elif tipo == "kg_rel":
+        elif tipo_valore == "kg_rel":
             val_attuale = relativo
         else:
             val_attuale = float(valore)
+
+        # ...il resto del codice qui prosegue invariato...
 
         # Recupera benchmark
         benchmark = benchmark_df[
@@ -1574,46 +1564,74 @@ elif pagina == "📊 Profilo Fitness per Area":
 
 # Pagina: Profilo Atleta
 elif pagina == "👤 Profilo Atleta":
+    st.title("Profilo Atleta")
 
-    # Carica i dati dell'atleta
     if utente is not None and isinstance(utente, dict) and 'nome' in utente:
-        atleta = utenti_df[utenti_df['nome'] == utente['nome']].squeeze()
+        atleta = utenti_df[utenti_df['nome'].str.strip().str.lower() == utente['nome'].strip().lower()]
     else:
-        atleta = None  # oppure puoi saltare direttamente la logica successiva
+        atleta = pd.DataFrame()
 
-
-    # Mostra i dati attuali
     st.write("### Dati attuali:")
-    st.write(f"**Nome:** {atleta['nome']}")
-    st.write(f"**Ruolo:** {atleta['ruolo']}")
-    st.write(f"**Data di nascita:** {atleta['data_nascita']}")
-    st.write(f"**Peso corporeo:** {atleta['peso']} kg")
-    st.write(f"**Genere:** {atleta['genere']}")
+    if atleta.empty:
+        st.warning("⚠️ Nessun atleta selezionato o dati mancanti.")
+    else:
+        st.write(f"**Nome:** {atleta['nome'].iloc[0]}")
+        st.write(f"**Ruolo:** {atleta['ruolo'].iloc[0]}")
+        st.write(f"**Data di nascita:** {atleta['data_nascita'].iloc[0]}")
+        st.write(f"**Peso corporeo:** {atleta['peso'].iloc[0]} kg")
+        st.write(f"**Genere:** {atleta['genere'].iloc[0]}")
 
-    # Modifica i dati
     st.write("### Modifica i tuoi dati:")
-    data_nascita_default = pd.to_datetime(atleta['data_nascita']) if pd.notnull(atleta['data_nascita']) else datetime.date(2000, 1, 1)
+    if atleta.empty:
+        data_nascita_default = datetime.date(2000, 1, 1)
+        peso_default = 70.0
+        genere_default = "Maschio"
+    else:
+        data_nascita_raw = atleta['data_nascita'].iloc[0]
+        data_nascita_default = pd.to_datetime(data_nascita_raw) if pd.notnull(data_nascita_raw) else datetime.date(2000, 1, 1)
+        peso_raw = atleta['peso'].iloc[0]
+        peso_default = float(peso_raw) if pd.notnull(peso_raw) else 70.0
+        genere_raw = atleta['genere'].iloc[0]
+        genere_default = genere_raw if genere_raw in ["Maschio", "Femmina", "Altro"] else "Maschio"
+
     nuova_data_nascita = st.date_input(
         "Data di nascita",
         value=data_nascita_default,
         min_value=datetime.date(1960, 1, 1)
     )
-    nuovo_peso = st.number_input("Peso corporeo (kg)", min_value=30.0, max_value=200.0, step=0.1, value=float(atleta['peso']) if pd.notnull(atleta['peso']) else 70.0)
+
+    nuovo_peso = st.number_input(
+        "Peso corporeo (kg)",
+        min_value=30.0,
+        max_value=200.0,
+        step=0.1,
+        value=peso_default
+    )
+
     nuovo_genere = st.selectbox(
         "Genere",
         options=["Maschio", "Femmina", "Altro"],
-        index=["Maschio", "Femmina", "Altro"].index(atleta['genere']) if atleta['genere'] in ["Maschio", "Femmina", "Altro"] else 0
+        index=["Maschio", "Femmina", "Altro"].index(genere_default)
     )
 
     if st.button("Salva modifiche"):
-        # Aggiorna i dati nel DataFrame
-        utenti_df.loc[utenti_df['nome'] == utente['nome'], 'data_nascita'] = nuova_data_nascita.strftime("%Y-%m-%d")
-        utenti_df.loc[utenti_df['nome'] == utente['nome'], 'peso'] = nuovo_peso
-        utenti_df.loc[utenti_df['nome'] == utente['nome'], 'genere'] = nuovo_genere
+        utenti_df.loc[
+            utenti_df['nome'].str.strip().str.lower() == utente['nome'].strip().lower(),
+            'data_nascita'
+        ] = nuova_data_nascita.strftime("%Y-%m-%d")
+        utenti_df.loc[
+            utenti_df['nome'].str.strip().str.lower() == utente['nome'].strip().lower(),
+            'peso'
+        ] = nuovo_peso
+        utenti_df.loc[
+            utenti_df['nome'].str.strip().str.lower() == utente['nome'].strip().lower(),
+            'genere'
+        ] = nuovo_genere
 
-        # Salva i dati aggiornati nel file CSV
-        # salva_csv(utenti_df, "utenti.csv")
-        st.success("Dati aggiornati con successo!")
+        # Salva su Google Sheets
+        salva_su_google_sheets(utenti_df, "utenti", "utenti")
+        st.success("✅ Modifiche salvate con successo!")
+
 
 # Pagine Coach
 if is_utente_valido() and utente['ruolo'] == 'coach':

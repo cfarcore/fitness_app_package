@@ -1235,6 +1235,9 @@ elif pagina == "📊 Grafici" and utente['ruolo'] == 'coach':
     st.markdown("---")
     st.subheader("📊 Profilo Radar (per atleta)")
     atleta_radar = st.selectbox("Seleziona atleta per Radar", utenti_df[utenti_df['ruolo'] == 'atleta']['nome'].unique(), key="coach_radar_atleta")
+    
+    st.write("DEBUG - test_df per atleta:", test_df[test_df['nome'] == atleta_radar])
+    
     tutte_categorie = esercizi_df["categoria"].unique()
     radar_labels = []
     radar_values = []
@@ -1305,6 +1308,9 @@ elif pagina == "📊 Grafici" and utente['ruolo'] == 'coach':
         if livelli_cat:
             radar_labels.append(categoria.capitalize())
             radar_values.append(round(sum(livelli_cat) / len(livelli_cat), 2))
+    st.write("DEBUG - Radar labels:", radar_labels)
+    st.write("DEBUG - Radar values:", radar_values)
+
     if radar_labels:
         fig = go.Figure(data=go.Scatterpolar(
             r=radar_values,

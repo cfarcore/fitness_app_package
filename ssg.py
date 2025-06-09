@@ -99,23 +99,23 @@ def carica_da_google_sheets(sheet_name, cache_duration=300):
         st.stop()
 
 # --- BLOCCO CACHE DATI ---
-@st.cache_data
+#@st.cache_data
 def carica_utenti():
     return carica_da_google_sheets("utenti")
 
-@st.cache_data
+#@st.cache_data
 def carica_esercizi():
     return carica_da_google_sheets("esercizi")
 
-@st.cache_data
+#@st.cache_data
 def carica_test():
     return carica_da_google_sheets("test")
 
-@st.cache_data
+#@st.cache_data
 def carica_benchmark():
     return carica_da_google_sheets("benchmark")
 
-@st.cache_data
+#@st.cache_data
 def carica_wod():
     return carica_da_google_sheets("wod")
 

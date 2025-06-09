@@ -673,19 +673,19 @@ def get_peso_corporeo(utente):
 
 # Funzione per salvare i dati su Google Sheets
 def salva_su_google_sheets(df, file_name, sheet_name):
-    """
-    Salva i dati in un foglio Google Sheets specifico.
-    :param df: DataFrame da salvare.
-    :param file_name: Nome del file Google Sheets.
-    :param sheet_name: Nome del foglio all’interno del file.
-    """
-    sh = client.open(file_name)
+    import time
     try:
-        worksheet = sh.worksheet(sheet_name)
-    except gspread.exceptions.WorksheetNotFound:
-        worksheet = sh.add_worksheet(title=sheet_name, rows=100, cols=20)
-    worksheet.clear()
-    worksheet.update([df.columns.values.tolist()] + df.values.tolist())
+        sh = client.open(file_name)
+        try:
+            worksheet = sh.worksheet(sheet_name)
+        except gspread.exceptions.WorksheetNotFound:
+            worksheet = sh.add_worksheet(title=sheet_name, rows=100, cols=20)
+        worksheet.clear()
+        worksheet.update([df.columns.values.tolist()] + df.values.tolist())
+        time.sleep(2)  # Aggiungi una piccola pausa per sicurezza
+        st.success("Scrittura su Google Sheets completata!")
+    except Exception as e:
+        st.error(f"Errore nel salvataggio su Google Sheets: {e}")
 
 # Funzione per scrivere su Google Sheets
 def scrivi_su_google_sheet(sheet_name, dataframe):
@@ -1706,7 +1706,8 @@ if is_utente_valido() and utente['ruolo'] == 'coach':
     elif pagina == "➕ Aggiungi Utente":
         # Pagina: Aggiungi Utente (solo per coach)
         st.subheader("➕ Aggiungi un nuovo utente")
-
+        carica_utenti.clear()        # Svuota la cache utenti
+        utenti_df = carica_utenti()  # Ricarica dal foglio Google
         # Mostra tutti gli utenti esistenti
         st.write("### utenti esistenti:")
         st.dataframe(utenti_df)
@@ -1722,9 +1723,9 @@ if is_utente_valido() and utente['ruolo'] == 'coach':
 
         if st.button("Elimina utente", key="elimina_utente_button"):
             utenti_df = utenti_df[utenti_df["nome"] != utente_da_eliminare]
-            salva_su_google_sheets(utenti_df, "utenti", "utenti")  # Usa salva_su_google_sheets
+            salva_su_google_sheets(utenti_df, "utenti", "utenti")
             test_df = test_df[test_df["nome"] != utente_da_eliminare]
-            salva_su_google_sheets(test_df, "test", "test")  # Usa salva_su_google_sheets
+            salva_su_google_sheets(test_df, "test", "test")
             st.success(f"Utente '{utente_da_eliminare}' e i suoi dati sono stati eliminati con successo!")
 
         # Input per i dettagli del nuovo utente (coach o atleta)
@@ -1741,9 +1742,13 @@ if is_utente_valido() and utente['ruolo'] == 'coach':
         )
         nuovo_genere = st.selectbox("Genere", ["Maschio", "Femmina", "Altro"], key="aggiungi_genere_utente")
 
-    # Aggiungi un nuovo utente
+        # --- QUI LA MODIFICA FONDAMENTALE ---
         if st.button("Aggiungi utente", key="aggiungi_utente_button"):
             if nuovo_nome and nuovo_pin:
+                carica_utenti.clear()  # Pulisci la cache prima di ricaricare!
+                utenti_df = carica_utenti()  # Ricarica TUTTI gli utenti dal foglio Google
+                st.write("DEBUG: utenti_df dopo ricarica dal foglio:", utenti_df)
+
                 nomi_esistenti = utenti_df["nome"].astype(str).str.strip().str.lower()
                 if nuovo_nome.strip().lower() in nomi_esistenti.values:
                     st.error(f"Esiste già un utente con il nome '{nuovo_nome}'. Scegli un nome diverso.")
@@ -1757,11 +1762,16 @@ if is_utente_valido() and utente['ruolo'] == 'coach':
                         "genere": nuovo_genere
                     }
                     utenti_df = pd.concat([utenti_df, pd.DataFrame([nuovo_utente])], ignore_index=True)
-                    salva_su_google_sheets(utenti_df, "utenti", "utenti")  # Salva su Google Sheets
-                    utenti_df = carica_utenti()  # Ricarica i dati aggiornati
+                    st.write("DEBUG: utenti_df che stai per salvare:", utenti_df)
+                    salva_su_google_sheets(utenti_df, "utenti", "utenti")
                     st.success(f"Nuovo utente '{nuovo_nome}' aggiunto con successo come {nuovo_ruolo}!")
+                    carica_utenti.clear()
+                    utenti_df = carica_utenti()
+                    st.write("DEBUG: utenti_df DOPO salvataggio:", utenti_df)
+                    st.dataframe(utenti_df)
             else:
                 st.error("Compila tutti i campi richiesti.")
+
 
     elif pagina == "📋 Storico Dati utenti":
         # Pagina: Storico Dati utenti (solo per coach)

@@ -172,6 +172,14 @@ def carica_da_google_sheets(sheet_name, cache_duration=300):
     except Exception as e:
         st.error(f"Errore durante il caricamento di '{sheet_name}': {e}")
         st.stop()
+# Funzione di refresh dei dati
+def aggiorna_tutti_i_dati():
+    global utenti_df, esercizi_df, test_df, benchmark_df, wod_df
+    utenti_df = carica_utenti()
+    esercizi_df = carica_esercizi()
+    test_df = carica_test()
+    benchmark_df = carica_benchmark()
+    wod_df = carica_wod()
 
 # Carica i dati da Google Sheets
 utenti_df = carica_utenti()
@@ -179,7 +187,8 @@ esercizi_df = carica_esercizi()
 test_df = carica_test()
 benchmark_df = carica_benchmark()
 wod_df = carica_wod()
-#PULSANTE REFRESH NELLA SIDEBAR
+
+# PULSANTE REFRESH NELLA SIDEBAR
 with st.sidebar:
     if st.button("🔄 Refresh Dati"):
         aggiorna_tutti_i_dati()
@@ -541,11 +550,15 @@ elif pagina == "📈 Storico Progressi":
     st.title("📈 Storico Progressi")
     st.write("Qui puoi visualizzare lo storico dettagliato dei test inseriti, esportare i dati e vedere l’andamento nel tempo di ogni esercizio.")
 
+    # Inizializza 'storico' come DataFrame vuoto per evitare errori
+    storico = pd.DataFrame(columns=test_df.columns)
+
     # AREA ATLETA: mostra solo i test dell’atleta loggato
-    if utente['ruolo'] == 'atleta':
-        storico = test_df[test_df['nome'] == utente['nome']].copy()
+    if utente.get('ruolo') == 'atleta':
+        storico = test_df[test_df['nome'] == utente.get('nome')].copy()
+    
     # AREA COACH: filtro per atleta o tutti
-    elif utente['ruolo'] == 'coach':
+    elif utente.get('ruolo') == 'coach':
         opzioni_atleti = ["Tutti"] + list(test_df["nome"].unique())
         atleta_sel = st.selectbox("Seleziona atleta", opzioni_atleti)
         if atleta_sel == "Tutti":
@@ -553,7 +566,7 @@ elif pagina == "📈 Storico Progressi":
         else:
             storico = test_df[test_df["nome"] == atleta_sel].copy()
     else:
-        storico = test_df.copy()
+        st.warning("Ruolo utente non riconosciuto. Controlla la configurazione.")
 
     # Ordina per data discendente
     storico["data"] = pd.to_datetime(storico["data"], errors="coerce")
@@ -598,26 +611,37 @@ elif pagina == "📈 Storico Progressi":
                     try:
                         m, s = map(int, v.split(":"))
                         return m * 60 + s
-                    except Exception:
+                    except Exception as e:
+                        st.warning(f"Errore conversione tempo '{v}': {e}")
                         return None
                 try:
                     return float(v.replace(",", "."))
-                except Exception:
+                except Exception as e:
+                    st.warning(f"Errore conversione valore '{v}': {e}")
                     return None
 
             y = storico["valore"].apply(converti_valore)
-            fig = go.Figure(go.Scatter(x=x, y=y, mode='lines+markers'))
-            fig.update_layout(
-                xaxis_title="Data",
-                yaxis_title=y_label,
-                height=350,
-                template="plotly_white"
-            )
-            st.plotly_chart(fig, use_container_width=True)
+
+            # DEBUG: mostra i valori convertiti (opzionale)
+            # st.write("DEBUG - Valori convertiti:", y.tolist())
+
+            # Controlla se ci sono valori validi
+            if y.dropna().empty:
+                st.info("Nessun dato valido per generare il grafico.")
+            else:
+                fig = go.Figure(go.Scatter(x=x, y=y, mode='lines+markers'))
+                fig.update_layout(
+                    xaxis_title="Data",
+                    yaxis_title=y_label,
+                    height=350,
+                    template="plotly_white"
+                )
+                st.plotly_chart(fig, use_container_width=True)
     else:
         st.info("Nessun test disponibile per i filtri selezionati.")
 
-elif pagina == "📒 WOD":
+
+if pagina == "📒 WOD":
     st.title("WOD")
     st.write("Gestisci e visualizza i WOD.")
     st.dataframe(wod_df)  # Mostra i dati dei WOD
@@ -1734,7 +1758,7 @@ if is_utente_valido() and utente['ruolo'] == 'coach':
     elif pagina == "➕ Aggiungi Utente":
         # Pagina: Aggiungi Utente (solo per coach)
         st.subheader("➕ Aggiungi un nuovo utente")
-        carica_utenti.clear()        # Svuota la cache utenti
+        utenti = carica_utenti()        # Svuota la cache utenti
         utenti_df = carica_utenti()  # Ricarica dal foglio Google
         # Mostra tutti gli utenti esistenti
         st.write("### utenti esistenti:")
@@ -1773,7 +1797,7 @@ if is_utente_valido() and utente['ruolo'] == 'coach':
         # --- QUI LA MODIFICA FONDAMENTALE ---
         if st.button("Aggiungi utente", key="aggiungi_utente_button"):
             if nuovo_nome and nuovo_pin:
-                carica_utenti.clear()  # Pulisci la cache prima di ricaricare!
+                utenti = carica_utenti()  # Pulisci la cache prima di ricaricare!
                 utenti_df = carica_utenti()  # Ricarica TUTTI gli utenti dal foglio Google
                 st.write("DEBUG: utenti_df dopo ricarica dal foglio:", utenti_df)
 
@@ -1793,7 +1817,7 @@ if is_utente_valido() and utente['ruolo'] == 'coach':
                     st.write("DEBUG: utenti_df che stai per salvare:", utenti_df)
                     salva_su_google_sheets(utenti_df, "utenti", "utenti")
                     st.success(f"Nuovo utente '{nuovo_nome}' aggiunto con successo come {nuovo_ruolo}!")
-                    carica_utenti.clear()
+                    utenti = carica_utenti()
                     utenti_df = carica_utenti()
                     st.write("DEBUG: utenti_df DOPO salvataggio:", utenti_df)
                     st.dataframe(utenti_df)

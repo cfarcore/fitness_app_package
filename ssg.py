@@ -375,7 +375,6 @@ elif pagina == "📅 Calendario WOD":
                 }
                 wod_df = pd.concat([wod_df, pd.DataFrame([nuovo_wod])], ignore_index=True)
                 salva_su_google_sheets(wod_df, "wod", "wod")
-                carica_wod.clear()
                 wod_df = carica_wod()
                 st.success("Nuovo WOD aggiunto!")
 
@@ -412,10 +411,8 @@ elif pagina == "📅 Calendario WOD":
                             nome_mod, descrizione_mod, data_mod.strftime("%Y-%m-%d"), principiante_mod, intermedio_mod, avanzato_mod, esercizi_mod, tipo_valore_mod, titolo_mod
                         ]
                         salva_su_google_sheets(wod_df, "wod", "wod")
-                        carica_wod.clear()
                         wod_df = carica_wod()
                         st.success("WOD aggiornato con successo!")
-
 
         st.markdown("---")
 
@@ -428,7 +425,6 @@ elif pagina == "📅 Calendario WOD":
                 index_to_delete = wod_df[wod_df["info"] == wod_da_eliminare].index[0]
                 wod_df = wod_df.drop(index=index_to_delete)
                 salva_su_google_sheets(wod_df, "wod", "wod")
-                carica_wod.clear()
                 wod_df = carica_wod()
                 st.success("WOD eliminato con successo!")
 
@@ -1689,7 +1685,6 @@ if is_utente_valido() and utente['ruolo'] == 'coach':
                 nuovo_record = {"esercizio": nuovo_esercizio, "categoria": categoria, "tipo_valore": tipo_valore}
                 esercizi_df = pd.concat([esercizi_df, pd.DataFrame([nuovo_record])], ignore_index=True)
                 salva_su_google_sheets(esercizi_df, "esercizi", "esercizi")  # Salva su Google Sheets
-                carica_esercizi.clear()  # Pulisci la cache PRIMA di ricaricare
                 esercizi_df = carica_esercizi()  # Carica i dati aggiornati
 
                 st.success("Esercizio aggiunto con successo!")
@@ -1737,7 +1732,6 @@ if is_utente_valido() and utente['ruolo'] == 'coach':
                 }
                 benchmark_df = pd.concat([benchmark_df, pd.DataFrame([nuovo_record])], ignore_index=True)
                 salva_su_google_sheets(benchmark_df, "benchmark", "benchmark")  # Salva su Google Sheets
-                carica_benchmark.clear()  # Svuota la cache prima di ricaricare
                 benchmark_df = carica_benchmark()  # Ricarica i dati aggiornati
                 st.success("Nuovo benchmark aggiunto con successo!")
 

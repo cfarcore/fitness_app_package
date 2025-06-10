@@ -126,6 +126,14 @@ test_df = carica_test()
 benchmark_df = carica_benchmark()
 wod_df = carica_wod()
 
+# 🔧 Aggiungi la colonna 'categoria' a test_df
+test_df = test_df.merge(
+    esercizi_df[['esercizio', 'categoria']],
+    how='left',
+    on='esercizio'
+)
+
+
 # 🔥 Leggi le credenziali da st.secrets
 SERVICE_ACCOUNT_INFO = st.secrets["SERVICE_ACCOUNT_JSON"]
 
@@ -747,7 +755,7 @@ if pagina == "➕ Inserisci nuovo test":
     genere = st.selectbox("Genere", ["Maschio", "Femmina", "Altro"], key="genere_test")  # Aggiunto campo per il genere
 
     if tipo_valore == "tempo":
-        minuti = st.number_input("Minuti", min_value=0, max_value=59, step=1)
+        minuti = st.number_input("Minuti", min_value=0, step=1)
         secondi = st.number_input("Secondi", min_value=0, max_value=59, step=1)
         valore = f"{int(minuti):02d}:{int(secondi):02d}"
     else:

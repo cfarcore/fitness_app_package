@@ -126,12 +126,29 @@ test_df = carica_test()
 benchmark_df = carica_benchmark()
 wod_df = carica_wod()
 
+# 🔧 Normalizza le colonne (rimuove spazi e porta a minuscolo)
+test_df.columns = test_df.columns.str.strip().str.lower()
+esercizi_df.columns = esercizi_df.columns.str.strip().str.lower()
+
+
+# 🔧 Pulisci le righe vuote
+if 'esercizio' in test_df.columns:
+    test_df = test_df.dropna(how='all')
+    test_df = test_df.dropna(subset=['esercizio'])
+else:
+    st.error("⚠️ Errore: manca la colonna 'esercizio' nei dati. Controlla il foglio Google Sheets!")
+    st.stop()
+
 # 🔧 Aggiungi la colonna 'categoria' a test_df
-test_df = test_df.merge(
-    esercizi_df[['esercizio', 'categoria']],
-    how='left',
-    on='esercizio'
-)
+if 'esercizio' in test_df.columns and 'esercizio' in esercizi_df.columns and 'categoria' in esercizi_df.columns:
+    test_df = test_df.merge(
+        esercizi_df[['esercizio', 'categoria']],
+        how='left',
+        on='esercizio'
+    )
+else:
+    st.error("⚠️ Errore: manca la colonna 'esercizio' o 'categoria' nei dati. Controlla il foglio Google Sheets!")
+    st.stop()
 
 
 # 🔥 Leggi le credenziali da st.secrets
@@ -2214,10 +2231,3 @@ if is_utente_valido():
             st.plotly_chart(fig, use_container_width=True)
         else:
             st.info("Non ci sono test disponibili per questo esercizio.")
-            # test recenti
-    st.subheader("📈 test recenti")
-    test_utente = test_df[test_df["nome"] == utente["nome"]].copy()
-    test_utente["data"] = pd.to_datetime(test_utente["data"])
-    test_utente = test_utente.sort_values("data")
-    test_recenti = test_utente.sort_values("data", ascending=False).head(5)
-    st.dataframe(test_recenti[["data", "esercizio", "valore"]])

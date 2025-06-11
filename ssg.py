@@ -23,7 +23,11 @@ def salva_su_google_sheets(df, file_name, sheet_name):
     worksheet.clear()
     worksheet.update([df.columns.values.tolist()] + df.values.tolist())
 
-st.set_page_config(page_title="Fitness Gauge", layout="wide")
+st.set_page_config(
+    page_title="Fitness Gauge",
+    page_icon="assets/logo.ico",  # <- qui indichi il percorso alla tua icona
+    layout="wide"
+)
 
 if "refresh" not in st.session_state:
     st.session_state.refresh = False
@@ -1422,6 +1426,120 @@ elif pagina == "📊 Grafici" and utente['ruolo'] == 'atleta':
     else:
         st.info("Nessun test disponibile per questo esercizio.")
 
+    # --- Gauge livello per esercizio (corretto) ---
+    st.markdown("### Gauge livello per esercizio")
+
+    macroarea_sel = st.selectbox(
+        "Seleziona macro-area", 
+        esercizi_df["categoria"].unique(), 
+        key="macroarea_selectbox"
+    )
+    esercizi_macro = esercizi_df[esercizi_df["categoria"] == macroarea_sel]["esercizio"].unique()
+    
+    # 🔥 Aggiunta selectbox per esercizio specifico
+    esercizio_sel = st.selectbox(
+        "Seleziona esercizio", 
+        esercizi_macro, 
+        key="esercizio_selectbox"
+    )
+
+    test_macroarea = test_df[
+        (test_df["nome"] == utente['nome']) & 
+        (test_df["esercizio"] == esercizio_sel)
+    ] 
+
+    livello_mapping = {"base": 1, "principiante": 2, "intermedio": 3, "buono": 4, "elite": 5}
+    livelli_atleta = []
+
+    for _, row in test_macroarea.iterrows():
+        benchmark = benchmark_df[
+            (benchmark_df['esercizio'] == row['esercizio']) &
+            (benchmark_df['genere'] == row['genere'])
+        ]
+        benchmark = benchmark.squeeze() if not benchmark.empty else None
+        livello = "base"
+        if benchmark is not None:
+            tipo = benchmark['tipo_valore']
+            val = None
+            try:
+                if tipo == "tempo":
+                    # 🔥 Gestione formati mm:ss e hh:mm:ss
+                    time_parts = str(row["valore"]).split(":")
+                    if len(time_parts) == 2:
+                        m, s = map(int, time_parts)
+                        val = m * 60 + s
+                    elif len(time_parts) == 3:
+                        h, m, s = map(int, time_parts)
+                        val = h * 3600 + m * 60 + s
+                    else:
+                        val = float(row["valore"])  # fallback
+
+                    # 🔥 Converte benchmark in secondi
+                    def convert_time(x):
+                        x_str = str(x)
+                        if ":" in x_str:
+                            parts = x_str.split(":")
+                            if len(parts) == 2:
+                                m, s = map(int, parts)
+                                return m * 60 + s
+                            elif len(parts) == 3:
+                                h, m, s = map(int, parts)
+                                return h * 3600 + m * 60 + s
+                        return float(x_str)
+                    
+                    benchmark_cols = ["base", "principiante", "intermedio", "buono", "elite"]
+                    benchmark[benchmark_cols] = benchmark[benchmark_cols].apply(convert_time)
+
+                else:
+                    val = float(row["valore"])
+            except Exception as e:
+                st.warning(f"⚠️ Errore nella conversione del valore: {e}")
+                val = None
+
+            for lvl_nome in reversed(list(livello_mapping.keys())):
+                soglia = benchmark[lvl_nome]
+                if tipo == "tempo":
+                    if val is not None and val <= soglia:
+                        livello = lvl_nome
+                        break
+                else:
+                    if val is not None and val >= soglia:
+                        livello = lvl_nome
+                        break
+        livelli_atleta.append(livello_mapping.get(livello, 1))
+
+    if livelli_atleta:
+        livello_medio = round(sum(livelli_atleta) / len(livelli_atleta), 2)
+        livello_nome = [k for k, v in livello_mapping.items() if v <= livello_medio][-1].capitalize()
+        import plotly.graph_objects as go
+        fig = go.Figure(go.Indicator(
+            mode="gauge+number",
+            value=livello_medio,
+            title={
+                'text': f"{esercizio_sel}<br><span style='font-size:0.8em;color:gray'>{livello_nome}</span>"
+                # 🔥 Modificato: usa esercizio selezionato nel titolo del Gauge
+            },
+            gauge={    
+                'axis': {
+                    'range': [1, 5],
+                    'tickvals': [1,2,3,4,5],
+                    'ticktext': list(livello_mapping.keys())
+                },
+                'bar': {'color': "royalblue"},
+                'steps': [
+                    {'range': [1, 2], 'color': "#e0e0e0"},
+                    {'range': [2, 3], 'color': "#b0c4de"},
+                    {'range': [3, 4], 'color': "#90ee90"},
+                    {'range': [4, 5], 'color': "#ffd700"},
+                ],
+            }
+        ))
+        fig.update_layout(height=300)
+        st.plotly_chart(fig, use_container_width=True)
+    else:
+        st.info("Non ci sono test disponibili per questo esercizio.")
+
+
     st.markdown("---")
 
     # Descrizione RADAR
@@ -1600,6 +1718,7 @@ elif pagina == "📊 Profilo Fitness per Area":
         )
         st.plotly_chart(fig, use_container_width=True)
 
+        
 # Pagina: Profilo Atleta
 elif pagina == "👤 Profilo Atleta":
     st.title("Profilo Atleta")
@@ -1936,7 +2055,7 @@ if is_utente_valido():
 
 # Pagina: Dashboard Atleta
     elif pagina == "🏠 Dashboard":
-        st.title("🏠 Dashboard Atleta")
+        st.title("Atleta")
 
         # Spinner per caricamento dati
         with st.spinner("Caricamento dati..."):
@@ -1976,14 +2095,14 @@ if is_utente_valido():
             )
             # Usa st.image per il logo, più compatibile con Streamlit
             col1, col2 = st.columns([1, 4])
-            with col1:
+            with col2:
                 # Mostra il logo solo se esiste il file
                 logo_path = "fitness_app/assets/logo.png"
                 if os.path.exists(logo_path):
                     st.image(logo_path, width=70)
                 else:
                     st.warning("Logo non trovato: fitness_app/assets/logo.png")
-            with col2:
+            with col1:
                 st.markdown(
                     f"""
                     <div class="user-info">
@@ -1998,53 +2117,111 @@ if is_utente_valido():
 
         st.divider()
 
-        # test recenti
-        st.subheader("📈 test recenti")
-        test_utente = test_df[test_df["nome"] == utente["nome"]].copy()
-        test_utente["data"] = pd.to_datetime(test_utente["data"])
-        test_utente = test_utente.sort_values("data")
-        test_recenti = test_utente.sort_values("data", ascending=False).head(5)
-        st.dataframe(test_recenti[["data", "esercizio", "valore"]])
+                # 🔥 AGGIUNTA: Grafico Gauge PRIMA dei test recenti, senza colonne
 
-        # Prossimi test consigliati (oltre 6 settimane fa)
-        st.subheader("⏰ test da ripetere")
-        cutoff_date = datetime.date.today() - datetime.timedelta(weeks=6)
-        test_scaduti = test_utente[test_utente["data"] < pd.to_datetime(cutoff_date)]
-        test_scaduti = test_scaduti.groupby("esercizio").tail(1)
-        if not test_scaduti.empty:
-            st.warning("⚠️ Questi test andrebbero aggiornati:")
-            st.dataframe(test_scaduti[["data", "esercizio", "valore"]])
+        st.markdown("### 🏅 Gauge livello per esercizio")
+
+        macroarea_sel = st.selectbox(
+            "Seleziona macro-area",
+            esercizi_df["categoria"].unique(),
+            key="macroarea_dashboard"
+        )
+        esercizi_macro = esercizi_df[esercizi_df["categoria"] == macroarea_sel]["esercizio"].unique()
+        esercizio_sel = st.selectbox(
+            "Seleziona esercizio",
+            esercizi_macro,
+            key="esercizio_dashboard"
+        )
+
+        test_macroarea = test_df[
+            (test_df["nome"] == utente["nome"]) &
+            (test_df["esercizio"] == esercizio_sel)
+        ]
+
+        livello_mapping = {"base": 1, "principiante": 2, "intermedio": 3, "buono": 4, "elite": 5}
+        livelli_atleta = []
+
+        for _, row in test_macroarea.iterrows():
+            benchmark = benchmark_df[
+                (benchmark_df['esercizio'] == row['esercizio']) &
+                (benchmark_df['genere'] == row['genere'])
+            ]
+            benchmark = benchmark.squeeze() if not benchmark.empty else None
+            livello = "base"
+            if benchmark is not None:
+                tipo = benchmark['tipo_valore']
+                val = None
+                try:
+                    if tipo == "tempo":
+                        time_parts = str(row["valore"]).split(":")
+                        if len(time_parts) == 2:
+                            m, s = map(int, time_parts)
+                            val = m * 60 + s
+                        elif len(time_parts) == 3:
+                            h, m, s = map(int, time_parts)
+                            val = h * 3600 + m * 60 + s
+                        else:
+                            val = float(row["valore"])
+
+                        def convert_time(x):
+                            x_str = str(x)
+                            if ":" in x_str:
+                                parts = x_str.split(":")
+                                if len(parts) == 2:
+                                    m, s = map(int, parts)
+                                    return m * 60 + s
+                                elif len(parts) == 3:
+                                    h, m, s = map(int, parts)
+                                    return h * 3600 + m * 60 + s
+                            return float(x_str)
+
+                        benchmark_cols = ["base", "principiante", "intermedio", "buono", "elite"]
+                        benchmark[benchmark_cols] = benchmark[benchmark_cols].apply(convert_time)
+
+                    else:
+                        val = float(row["valore"])
+                except Exception as e:
+                    st.warning(f"⚠️ Errore nella conversione del valore: {e}")
+                    val = None
+                for lvl_nome in reversed(list(livello_mapping.keys())):
+                    soglia = benchmark[lvl_nome]
+                    if tipo == "tempo":
+                        if val is not None and val <= soglia:
+                            livello = lvl_nome
+                            break
+                    else:
+                        if val is not None and val >= soglia:
+                            livello = lvl_nome
+                            break
+            livelli_atleta.append(livello_mapping.get(livello, 1))
+
+        if livelli_atleta:
+            livello_medio = round(sum(livelli_atleta) / len(livelli_atleta), 2)
+            livello_nome = [k for k, v in livello_mapping.items() if v <= livello_medio][-1].capitalize()
+            import plotly.graph_objects as go
+            fig = go.Figure(go.Indicator(
+                mode="gauge+number",
+                value=livello_medio,
+                title={'text': f"{esercizio_sel}<br><span style='font-size:0.8em;color:gray'>{livello_nome}</span>"},
+                gauge={
+                    'axis': {'range': [1, 5], 'tickvals': [1,2,3,4,5], 'ticktext': list(livello_mapping.keys())},
+                    'bar': {'color': "royalblue"},
+                    'steps': [
+                        {'range': [1, 2], 'color': "#e0e0e0"},
+                        {'range': [2, 3], 'color': "#b0c4de"},
+                        {'range': [3, 4], 'color': "#90ee90"},
+                        {'range': [4, 5], 'color': "#ffd700"},
+                    ],
+                }
+            ))
+            fig.update_layout(height=300)
+            st.plotly_chart(fig, use_container_width=True)
         else:
-            st.success("✅ Nessun test da aggiornare al momento.")
-
-# Responsive CSS per mobile
-st.markdown("""
-    <style>
-    html, body, .stApp {
-        max-width: 100vw;
-        overflow-x: hidden;
-        font-size: 17px;
-    }
-    .block-container {
-        padding-top: 3.5rem !important;  # <--- aumenta il padding-top
-        padding-bottom: 0.5rem !important;
-        padding-left: 0.5rem !important;
-        padding-right: 0.5rem !important;
-    }
-    @media (max-width: 600px) {
-        .block-container {
-            padding-top: 1.5rem !important;  # <--- aumenta anche su mobile
-            padding-bottom: 0.2rem !important;
-            padding-left: 0.1rem !important;
-            padding-right: 0.1rem !important;
-        }
-        h1, h2, h3, h4 {
-            font-size: 1.2em !important;
-        }
-        .stImage > img {
-            width: 60px !important;
-            height: 60px !important;
-        }
-    }
-    </style>
-""", unsafe_allow_html=True)
+            st.info("Non ci sono test disponibili per questo esercizio.")
+            # test recenti
+    st.subheader("📈 test recenti")
+    test_utente = test_df[test_df["nome"] == utente["nome"]].copy()
+    test_utente["data"] = pd.to_datetime(test_utente["data"])
+    test_utente = test_utente.sort_values("data")
+    test_recenti = test_utente.sort_values("data", ascending=False).head(5)
+    st.dataframe(test_recenti[["data", "esercizio", "valore"]])

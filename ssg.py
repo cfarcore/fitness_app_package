@@ -23,12 +23,7 @@ def salva_su_google_sheets(df, file_name, sheet_name):
     worksheet.clear()
     worksheet.update([df.columns.values.tolist()] + df.values.tolist())
 
-st.set_page_config(
-    page_title="Fitness Gauge",
-    page_icon="assets/logo.png",  # usa PNG invece di ICO
-    layout="wide"
-)
-
+st.set_page_config(page_title="Fitness Gauge", layout="wide")
 
 if "refresh" not in st.session_state:
     st.session_state.refresh = False

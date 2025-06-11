@@ -25,9 +25,10 @@ def salva_su_google_sheets(df, file_name, sheet_name):
 
 st.set_page_config(
     page_title="Fitness Gauge",
-    page_icon="assets/logo.ico",  # <- qui indichi il percorso alla tua icona
+    page_icon="assets/logo.png",  # usa PNG invece di ICO
     layout="wide"
-)
+
+
 
 if "refresh" not in st.session_state:
     st.session_state.refresh = False

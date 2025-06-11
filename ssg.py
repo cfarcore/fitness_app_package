@@ -27,7 +27,7 @@ st.set_page_config(
     page_title="Fitness Gauge",
     page_icon="assets/logo.png",  # usa PNG invece di ICO
     layout="wide"
-
+)
 
 
 if "refresh" not in st.session_state:

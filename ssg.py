@@ -105,7 +105,7 @@ def carica_utenti():
 
 #@st.cache_data
 def carica_esercizi():
-    rreturn carica_da_google_sheets("esercizi", cache_duration=0)
+    return carica_da_google_sheets("esercizi", cache_duration=0)
 
 #@st.cache_data
 def carica_test():

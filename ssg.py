@@ -119,18 +119,20 @@ def carica_benchmark():
 def carica_wod():
     return carica_da_google_sheets("wod", cache_duration=0)
 
+# --- FUNZIONE DI REFRESH DATI ---
 def aggiorna_tutti_i_dati():
     global utenti_df, esercizi_df, test_df, benchmark_df, wod_df
     utenti_df = carica_utenti()
     esercizi_df = carica_esercizi()
     test_df = carica_test()
-    test_df["nome"] = test_df["nome"].astype(str).str.strip().str.title()
+
+    # ✅ Verifica che la colonna 'nome' esista prima di normalizzarla
+    if "nome" in test_df.columns:
+        test_df["nome"] = test_df["nome"].astype(str).str.strip().str.title()
+
     benchmark_df = carica_benchmark()
     wod_df = carica_wod()
-# ✅ Chiamata centralizzata
-aggiorna_tutti_i_dati()
 
-    
 # 🔧 Normalizza le colonne (rimuove spazi e porta a minuscolo)
 test_df.columns = test_df.columns.str.strip().str.lower()
 esercizi_df.columns = esercizi_df.columns.str.strip().str.lower()
@@ -202,25 +204,6 @@ def carica_da_google_sheets(sheet_name, cache_duration=300):
     except Exception as e:
         st.error(f"Errore durante il caricamento di '{sheet_name}': {e}")
         st.stop()
-# Funzione di refresh dei dati
-def aggiorna_tutti_i_dati():
-    global utenti_df, esercizi_df, test_df, benchmark_df, wod_df
-    utenti_df = carica_utenti()
-    esercizi_df = carica_esercizi()
-    test_df = carica_test()
-    test_df["nome"] = test_df["nome"].str.strip().str.title()
-    benchmark_df = carica_benchmark()
-    wod_df = carica_wod()
-
-# --- FUNZIONE DI REFRESH DATI ---
-def aggiorna_tutti_i_dati():
-    global utenti_df, esercizi_df, test_df, benchmark_df, wod_df
-    utenti_df = carica_utenti()
-    esercizi_df = carica_esercizi()
-    test_df = carica_test()
-    test_df["nome"] = test_df["nome"].str.strip().str.title()
-    benchmark_df = carica_benchmark()
-    wod_df = carica_wod()
 
 # --- PULSANTE REFRESH MANUALE (sidebar) ---
 with st.sidebar:

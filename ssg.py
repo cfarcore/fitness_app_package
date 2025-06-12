@@ -101,23 +101,23 @@ def carica_da_google_sheets(sheet_name, cache_duration=300):
 # --- BLOCCO CACHE DATI ---
 #@st.cache_data
 def carica_utenti():
-    return carica_da_google_sheets("utenti")
+    return carica_da_google_sheets("utenti", cache_duration=0)
 
 #@st.cache_data
 def carica_esercizi():
-    return carica_da_google_sheets("esercizi")
+    rreturn carica_da_google_sheets("esercizi", cache_duration=0)
 
 #@st.cache_data
 def carica_test():
-    return carica_da_google_sheets("test")
+    return carica_da_google_sheets("test", cache_duration=0)
 
 #@st.cache_data
 def carica_benchmark():
-    return carica_da_google_sheets("benchmark")
+   return carica_da_google_sheets("benchmark", cache_duration=0)
 
 #@st.cache_data
 def carica_wod():
-    return carica_da_google_sheets("wod")
+    return carica_da_google_sheets("wod", cache_duration=0)
 
 # Carica i dati dalle cache (USARE SEMPRE QUESTI!)
 utenti_df = carica_utenti()

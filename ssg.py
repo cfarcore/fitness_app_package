@@ -123,6 +123,8 @@ def carica_wod():
 utenti_df = carica_utenti()
 esercizi_df = carica_esercizi()
 test_df = carica_test()
+test_df["nome"] = test_df["nome"].astype(str).str.strip().str.title()
+
 benchmark_df = carica_benchmark()
 wod_df = carica_wod()
 
@@ -203,6 +205,7 @@ def aggiorna_tutti_i_dati():
     utenti_df = carica_utenti()
     esercizi_df = carica_esercizi()
     test_df = carica_test()
+    test_df["nome"] = test_df["nome"].str.strip().str.title()
     benchmark_df = carica_benchmark()
     wod_df = carica_wod()
 
@@ -210,6 +213,8 @@ def aggiorna_tutti_i_dati():
 utenti_df = carica_utenti()
 esercizi_df = carica_esercizi()
 test_df = carica_test()
+test_df["nome"] = test_df["nome"].astype(str).str.strip().str.title()
+
 benchmark_df = carica_benchmark()
 wod_df = carica_wod()
 
@@ -220,38 +225,53 @@ with st.sidebar:
         utenti_df = carica_utenti()
         esercizi_df = carica_esercizi()
         test_df = carica_test()
+        test_df["nome"] = test_df["nome"].astype(str).str.strip().str.title()
+
+
         benchmark_df = carica_benchmark()
         wod_df = carica_wod()
         st.success("✅ Dati aggiornati con successo!")
 
 # Login
+# Login
 if not st.session_state.logged_in:
     ruolo = st.selectbox("Seleziona il tuo ruolo", ["atleta", "coach"])
     nome = st.text_input("Inserisci il tuo nome")
     pin = st.text_input("Inserisci il tuo PIN", type="password")
+    
     if st.button("Accedi"):
-        utenti_df["nome"] = utenti_df["nome"].astype(str).str.strip()
-        utenti_df["pin"] = utenti_df["pin"].astype(str).str.strip()
-        utenti_df["ruolo"] = utenti_df["ruolo"].astype(str).str.strip()
-        nome_normalizzato = nome.strip()
+        # Normalizza input
+        nome_normalizzato = nome.strip().lower()
         pin_normalizzato = pin.strip()
+        ruolo_normalizzato = ruolo.strip().lower()
 
+        # Normalizza il DataFrame
+        utenti_df["nome"] = utenti_df["nome"].astype(str).str.strip().str.lower()
+        utenti_df["pin"] = utenti_df["pin"].astype(str).str.strip()
+        utenti_df["ruolo"] = utenti_df["ruolo"].astype(str).str.strip().str.lower()
+
+        # Filtra
         utente_raw = utenti_df[
             (utenti_df["nome"] == nome_normalizzato) &
             (utenti_df["pin"] == pin_normalizzato) &
-            (utenti_df["ruolo"] == ruolo)
+            (utenti_df["ruolo"] == ruolo_normalizzato)
         ]
+
         if not utente_raw.empty:
             st.session_state.logged_in = True
             st.session_state.user_pin = pin_normalizzato
             st.session_state.utente = utente_raw.squeeze().to_dict()
+
+            # 🔧 Correggi formato nome
+            st.session_state.utente["nome"] = st.session_state.utente["nome"].strip().title()
+
             st.session_state.refresh = True
             st.rerun()
- # <--- questa fa ripartire l'app SUBITO dopo il login!
         else:
             st.error("Nome, PIN o ruolo non validi. Riprova.")
-        # st.stop()  # Non serve più qui!
-    st.stop()  # Qui va bene: ferma solo se NON hai cliccato Accedi!
+
+    st.stop()  # Blocca la pagina finché non premi Accedi
+
 
 # Tema chiaro/scuro
 tema = st.sidebar.radio("🎨 Tema", ["Chiaro", "Scuro"])
@@ -759,94 +779,166 @@ def scrivi_su_google_sheet(sheet_name, dataframe):
 utente = st.session_state.get("utente", None)
 
 # Pagina: Inserisci nuovo test
-# Pagina: Inserisci nuovo test
 if pagina == "➕ Inserisci nuovo test":
     st.subheader("➕ Inserisci un nuovo test")
-    # Selezione categoria prima di esercizio
+
+    # 🔄 RESET: se richiesto, resetta i valori PRIMA dei widget
+    if st.session_state.get("reset_test_form", False):
+        st.session_state["categoria_input"] = esercizi_df["categoria"].unique()[0]
+        st.session_state["esercizio_input"] = ""
+        st.session_state["genere_input"] = "Maschio"
+        st.session_state["valore_input"] = 0.0
+        st.session_state["minuti_input"] = 0
+        st.session_state["secondi_input"] = 0
+        st.session_state["data_input"] = datetime.date.today()
+        if utente["ruolo"] == "coach":
+            st.session_state["nome_atleta_input"] = utenti_df[utenti_df["ruolo"] == "atleta"]["nome"].unique()[0]
+        st.session_state["reset_test_form"] = False
+
+    # Inizializzazione solo se mancano
+    if "categoria_input" not in st.session_state:
+        st.session_state["categoria_input"] = esercizi_df["categoria"].unique()[0]
+
+    # Selezione categoria
     categorie_disponibili = esercizi_df["categoria"].unique()
-    categoria_selezionata = st.selectbox("Seleziona categoria", categorie_disponibili)
+    categoria_selezionata = st.selectbox("Seleziona categoria", categorie_disponibili, key="categoria_input")
+
+    # Esercizi filtrati
     esercizi_filtrati = esercizi_df[esercizi_df["categoria"] == categoria_selezionata]["esercizio"].unique()
-    nome_atleta = utente['nome'] if utente['ruolo'] == 'atleta' else st.selectbox("Seleziona atleta", utenti_df[utenti_df['ruolo'] == 'atleta']['nome'].unique())
-    esercizio = st.selectbox("Esercizio", esercizi_filtrati)
-    tipo_valore = esercizi_df[esercizi_df["esercizio"] == esercizio]["tipo_valore"].values[0]
-    genere = st.selectbox("Genere", ["Maschio", "Femmina", "Altro"], key="genere_test")  # Aggiunto campo per il genere
 
-    if tipo_valore == "tempo":
-        minuti = st.number_input("Minuti", min_value=0, step=1)
-        secondi = st.number_input("Secondi", min_value=0, max_value=59, step=1)
-        valore = f"{int(minuti):02d}:{int(secondi):02d}"
+    # Inizializza esercizio_input se mancante
+    if "esercizio_input" not in st.session_state:
+        st.session_state["esercizio_input"] = esercizi_filtrati[0] if len(esercizi_filtrati) > 0 else ""
+
+    # Risincronizza se l'esercizio salvato non è più valido
+    if st.session_state["esercizio_input"] not in esercizi_filtrati:
+        st.session_state["esercizio_input"] = esercizi_filtrati[0] if len(esercizi_filtrati) > 0 else ""
+
+    esercizio = st.selectbox("Esercizio", esercizi_filtrati, key="esercizio_input")
+
+    # 🔒 Recupera tipo_valore, se esiste
+    if esercizio in esercizi_df["esercizio"].values:
+        tipo_valore = esercizi_df[esercizi_df["esercizio"] == esercizio]["tipo_valore"].values[0]
     else:
-        valore = st.number_input("Valore", step=1.0)
-
-    data_test = st.date_input("Data", value=datetime.date.today())
-    peso_corporeo = get_peso_corporeo(utente)
-
-    # Converte eventuali virgole in punti per gestire numeri europei
-    if isinstance(peso_corporeo, str):
-        peso_corporeo = peso_corporeo.replace(",", ".")
-    try:
-        peso_corporeo = float(peso_corporeo) if peso_corporeo is not None else None
-    except (ValueError, TypeError):
-        peso_corporeo = None
-    if peso_corporeo is None or not isinstance(peso_corporeo, (int, float)) or peso_corporeo <= 0:
-        st.error("Peso corporeo non valido. Inserisci un valore numerico maggiore di 0.")
+        st.error("❌ Errore: esercizio non valido. Controlla il database esercizi.")
         st.stop()
 
-    # Verifica che peso_corporeo sia valido prima di usarlo
-    if tipo_valore == "kg_rel" and peso_corporeo > 0:
-        relativo = round(float(valore) / peso_corporeo, 2)
+
+#    # Nome atleta
+    if utente['ruolo'] == 'atleta':
+        nome_atleta = utente['nome']
+        st.markdown(f"👤 **Atleta:** {nome_atleta}")
     else:
-        relativo = None
+        if "nome_atleta_input" not in st.session_state:
+            st.session_state["nome_atleta_input"] = utenti_df[utenti_df["ruolo"] == "atleta"]["nome"].unique()[0]
+        nome_atleta = st.selectbox("Seleziona atleta", utenti_df[utenti_df["ruolo"] == "atleta"]["nome"].unique(), key="nome_atleta_input")
 
-    # Salva un nuovo test
-    if st.button("Salva test"):
-        nuovo_test = {
-            "nome": nome_atleta,
-            "esercizio": esercizio,
-            "valore": str(valore).replace(",", "."),
-            "tipo_valore": tipo_valore,
-            "peso_corporeo": peso_corporeo,
-            "relativo": relativo,
-            "data": data_test.strftime("%Y-%m-%d"),
-            "genere": genere
-        }
-        test_df = pd.concat([test_df, pd.DataFrame([nuovo_test])], ignore_index=True)
-        salva_su_google_sheets(test_df, "test", "test")  # Salva su Google Sheets
-        test_df = carica_test() # Ricarica i dati aggiornati
-        st.success("Test salvato correttamente!")
+    # Genere
+    genere = st.selectbox("Genere", ["Maschio", "Femmina", "Altro"], key="genere_input")
 
-        # Feedback intelligente
-        test_utente = test_df[(test_df["nome"] == nome_atleta) & (test_df["esercizio"] == esercizio)]
+    # Inserimento valore
+    if tipo_valore == "tempo":
+        minuti = st.number_input("Minuti", min_value=0, step=1, key="minuti_input")
+        secondi = st.number_input("Secondi", min_value=0, max_value=59, step=1, key="secondi_input")
+        valore = f"{int(minuti):02d}:{int(secondi):02d}"
+    else:
+        valore = st.number_input("Valore", step=1.0, key="valore_input")
+
+    # Data test
+    data_test = st.date_input("Data", key="data_input")
+
+    # Peso corporeo
+    peso_corporeo = get_peso_corporeo(utente)
+    if isinstance(peso_corporeo, str):
+        peso_corporeo = peso_corporeo.replace(",", ".")
+
+    try:
+        peso_corporeo = float(peso_corporeo) if peso_corporeo else None
+    except (ValueError, TypeError):
+        peso_corporeo = None
+
+    if peso_corporeo is None or peso_corporeo <= 0:
+        st.error("⚠️ Peso corporeo non valido. Inserisci un valore numerico maggiore di 0.")
+        st.stop()
+
+    # Calcolo valore relativo
+    relativo = None
+    if tipo_valore == "kg_rel" and peso_corporeo > 0:
+        try:
+            relativo = round(float(valore) / peso_corporeo, 2)
+        except:
+            relativo = None
+
+        # Salvataggio test
+        if st.button("Salva test"):
+            nuovo_test = {
+                "nome": nome_atleta.strip().title(),  # 👈 normalizzato
+                "esercizio": esercizio,
+                "valore": str(valore).replace(",", "."),
+                "tipo_valore": tipo_valore,
+                "peso_corporeo": peso_corporeo,
+                "relativo": relativo,
+                "data": data_test.strftime("%Y-%m-%d"),
+                "genere": genere
+            }
+
+            test_df = pd.concat([test_df, pd.DataFrame([nuovo_test])], ignore_index=True)
+            salva_su_google_sheets(test_df, "test", "test")
+            test_df = carica_test()
+            test_df["nome"] = test_df["nome"].astype(str).str.strip().str.title()
+
+            st.success("Test salvato correttamente!")
+
+            # 🔒 Salva i dati nel session_state per uso post-rerun
+            st.session_state["last_nome"] = nuovo_test["nome"]
+            st.session_state["last_esercizio"] = nuovo_test["esercizio"]
+            st.session_state["last_valore"] = nuovo_test["valore"]
+            st.session_state["last_tipo_valore"] = nuovo_test["tipo_valore"]
+            st.session_state["last_relativo"] = nuovo_test["relativo"]
+            if tipo_valore == "tempo":
+                st.session_state["last_minuti"] = int(minuti)
+                st.session_state["last_secondi"] = int(secondi)
+
+            st.session_state["reset_test_form"] = True
+            st.rerun()
+
+# 🧠 Feedback intelligente (fuori dal blocco button!)
+if "last_nome" in st.session_state and "last_esercizio" in st.session_state:
+    test_utente = test_df[
+        (test_df["nome"] == st.session_state["last_nome"]) &
+        (test_df["esercizio"] == st.session_state["last_esercizio"])
+    ]
+
+    if not test_utente.empty:
         test_utente["data"] = pd.to_datetime(test_utente["data"])
         test_utente = test_utente.sort_values("data")
 
-        # Calcolo valore attuale
-        if tipo_valore == "tempo":
-            val_attuale = int(minuti) * 60 + int(secondi)
-        elif tipo_valore == "kg_rel":
-            val_attuale = relativo
-        else:
-            val_attuale = float(valore)
+        tipo_valore = st.session_state["last_tipo_valore"]
+        esercizio = st.session_state["last_esercizio"]
+        genere = st.session_state.get("genere_input", "Maschio")  # fallback
 
-        # ...il resto del codice qui prosegue invariato...
+        if tipo_valore == "tempo":
+            val_attuale = st.session_state["last_minuti"] * 60 + st.session_state["last_secondi"]
+        elif tipo_valore == "kg_rel":
+            val_attuale = st.session_state["last_relativo"]
+        else:
+            val_attuale = float(st.session_state["last_valore"])
 
         # Recupera benchmark
         benchmark = benchmark_df[
             (benchmark_df["esercizio"] == esercizio) &
             (benchmark_df["genere"] == genere)
         ]
+
         if benchmark.empty:
-            st.error(f"Nessun benchmark tr_dvato per l'esercizio '{esercizio}' e il genere '{genere}'. Verifica i dati nel foglio Google Sheets 'benchmark'.")
-            st.stop()
-        benchmark = benchmark.squeeze()
+            st.warning(f"⚠️ Nessun benchmark trovato per '{esercizio}' e genere '{genere}'.")
+        else:
+            benchmark = benchmark.squeeze()
 
-        livello_raggiunto = "Non valutabile"
-        livello_prossimo = None
-        target_prossimo = None
-
-        if benchmark is not None:
+            livello_raggiunto = "Non valutabile"
             soglie = ["base", "principiante", "intermedio", "buono", "elite"]
             valori = []
+
             for soglia in soglie:
                 valore_raw = benchmark[soglia]
                 try:
@@ -856,54 +948,38 @@ if pagina == "➕ Inserisci nuovo test":
                     else:
                         valori.append(float(valore_raw))
                 except (ValueError, TypeError):
-                    st.error(f"Valore non valido per la soglia '{soglia}' nell'esercizio '{esercizio}'. Verifica i dati nel foglio Google Sheets 'benchmark'.")
-                    st.stop()
+                    st.warning(f"⚠️ Valore non valido per la soglia '{soglia}' nell'esercizio '{esercizio}'.")
+                    valori.append(None)
 
-            # Determina il livello attuale
-            for i, soglia in enumerate(reversed(soglie)):
-                if (tipo_valore == "tempo" and val_attuale <= valori[-(i+1)]) or (tipo_valore != "tempo" and val_attuale >= valori[-(i+1)]):
-                    livello_raggiunto = soglia.capitalize()
-                    if i != 0:
-                        livello_prossimo = soglie[-(i)]
-                        target_prossimo = valori[-(i)]
-                    break
+            for i, soglia in enumerate(soglie):
+                if tipo_valore == "tempo":
+                    if val_attuale <= valori[i]:
+                        livello_raggiunto = soglia
+                        break
+                else:
+                    if val_attuale >= valori[i]:
+                        livello_raggiunto = soglia
 
-        st.info(f"🎯 Hai raggiunto il livello **{livello_raggiunto}** nel test di **{esercizio}**.")
-        if livello_prossimo and target_prossimo:
-            st.warning(f"➡️ Obiettivo consigliato: livello **{livello_prossimo.capitalize()}** ({target_prossimo}).")
-        st.caption(f"📅 Ripeti il test tra circa **6 settimane** ({(data_test + datetime.timedelta(weeks=6)).strftime('%d/%m/%Y')}).")
+            st.success(f"✅ Hai raggiunto il livello: **{livello_raggiunto.upper()}** 💪")
 
-        # Miglioramento percentuale rispetto al test precedente
+        # 🔁 Confronto con test precedente
         if len(test_utente) > 1:
-            penultimo = test_utente.iloc[-2]
+            test_prec = test_utente.iloc[-2]  # penultimo test
             if tipo_valore == "tempo":
-                try:
-                    m, s = map(int, str(penultimo["valore"]).split(":"))
-                    val_prec = m * 60 + s
-                except (ValueError, TypeError):
-                    val_prec = None
-            elif tipo == "kg_rel":
-                val_prec = penultimo["relativo"]
+                m, s = map(int, str(test_prec["valore"]).split(":"))
+                val_prec = m * 60 + s
+                diff = val_prec - val_attuale
+                verso = "migliorato" if diff > 0 else "peggiorato"
+                st.info(f"⏱️ Hai {verso} di **{abs(diff)} secondi** rispetto al test del {test_prec['data'].date()}.")
             else:
                 try:
-                    val_prec = float(penultimo["valore"])
-                except (ValueError, TypeError):
-                    val_prec = None
+                    val_prec = float(test_prec["relativo"]) if tipo_valore == "kg_rel" else float(test_prec["valore"])
+                    diff = round(val_attuale - val_prec, 2)
+                    verso = "migliorato" if diff > 0 else "peggiorato"
+                    st.info(f"📊 Hai {verso} di **{abs(diff)}** rispetto al test del {test_prec['data'].date()}.")
+                except:
+                    pass
 
-            if val_prec and val_prec != 0:
-                if tipo_valore == "tempo":
-                    delta = val_prec - val_attuale
-                    miglioramento = (delta / val_prec) * 100
-                else:
-                    delta = val_attuale - val_prec
-                    miglioramento = (delta / val_prec) * 100
-                st.success(f"📈 Miglioramento del **{miglioramento:.2f}%** rispetto al test precedente.")
-
-                # Badge sbloccato
-                if livello_raggiunto != "Non valutabile":
-                    if livelli_val.get(livello_raggiunto.lower(), 0) > livelli_val.get(penultimo.get("livello", "").lower(), 0):
-                        st.balloons()
-                        st.success("🏅 Hai sbloccato un nuovo badge di livello!")
 
     # Mostra l'expander solo dopo il salvataggio
     if st.session_state.get('show_expander', False):
@@ -1180,12 +1256,22 @@ elif pagina == "📜 Storico test":
             lambda row: f"Esercizio: {row['esercizio']} | Data: {row['data']} | Valore: {row['valore']} | Tipo: {row['tipo_valore']}", axis=1
         )
         test_da_eliminare = st.selectbox("Seleziona un test da eliminare", atleta_test['info'])
+
         if st.button("Elimina test"):
-            index_to_delete = atleta_test[atleta_test['info'] == test_da_eliminare].index[0]
-            test_df = test_df.drop(index=index_to_delete)
-            salva_su_google_sheets(test_df, "test", "test")  # Usa salva_su_google_sheets
-            st.success("Test eliminato con successo!")
-            st.query_params = {"refresh": "true"}  # Simula un aggiornamento della pagina
+            # Ottieni indice nel test_df originale
+            index_to_delete = test_df[
+                (test_df["nome"] == utente["nome"]) &
+                (test_df["esercizio"] == atleta_test[atleta_test['info'] == test_da_eliminare]["esercizio"].values[0]) &
+                (test_df["data"] == atleta_test[atleta_test['info'] == test_da_eliminare]["data"].values[0])
+            ].index
+
+            if not index_to_delete.empty:
+                test_df = test_df.drop(index=index_to_delete)
+                salva_su_google_sheets(test_df, "test", "test")  # 🔥 Salva davvero online
+                st.success("✅ Test eliminato con successo!")
+                st.rerun()  # 🔁 Ricarica subito la pagina
+            else:
+                st.error("⚠️ Errore: test non trovato.")
 
 # ----- GRAFICI COACH -----
 elif pagina == "📊 Grafici" and utente['ruolo'] == 'coach':
@@ -2017,6 +2103,27 @@ if is_utente_valido():
                     """,
                     unsafe_allow_html=True
                 )
+                import plotly.express as px
+
+                # 🔍 Filtra solo gli utenti con ruolo atleta
+                atleti = utenti_df[utenti_df["ruolo"] == "atleta"]
+
+                # 🎯 Conta per genere
+                conteggio_genere = atleti["genere"].str.strip().str.title().value_counts().reset_index()
+                conteggio_genere.columns = ["Genere", "Numero"]
+
+                # 📊 Grafico a torta (puoi sostituire con bar se preferisci)
+                fig = px.pie(
+                    conteggio_genere,
+                    values="Numero",
+                    names="Genere",
+                    title="Distribuzione Atleti per Genere",
+                    color_discrete_sequence=px.colors.qualitative.Pastel
+                )
+
+                st.plotly_chart(fig, use_container_width=True)
+
+                
                 # Usa st.image per il logo, più compatibile con Streamlit
                 col1, col2 = st.columns([1, 4])
                 with col1:

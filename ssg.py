@@ -99,35 +99,38 @@ def carica_da_google_sheets(sheet_name, cache_duration=300):
         st.stop()
 
 # --- BLOCCO CACHE DATI ---
-#@st.cache_data
+@st.cache_data(ttl=60)
 def carica_utenti():
     return carica_da_google_sheets("utenti", cache_duration=0)
 
-#@st.cache_data
+@st.cache_data(ttl=60)
 def carica_esercizi():
     return carica_da_google_sheets("esercizi", cache_duration=0)
 
-#@st.cache_data
+@st.cache_data(ttl=60)
 def carica_test():
     return carica_da_google_sheets("test", cache_duration=0)
 
-#@st.cache_data
+@st.cache_data(ttl=60)
 def carica_benchmark():
    return carica_da_google_sheets("benchmark", cache_duration=0)
 
-#@st.cache_data
+@st.cache_data(ttl=60)
 def carica_wod():
     return carica_da_google_sheets("wod", cache_duration=0)
 
-# Carica i dati dalle cache (USARE SEMPRE QUESTI!)
-utenti_df = carica_utenti()
-esercizi_df = carica_esercizi()
-test_df = carica_test()
-test_df["nome"] = test_df["nome"].astype(str).str.strip().str.title()
+def aggiorna_tutti_i_dati():
+    global utenti_df, esercizi_df, test_df, benchmark_df, wod_df
+    utenti_df = carica_utenti()
+    esercizi_df = carica_esercizi()
+    test_df = carica_test()
+    test_df["nome"] = test_df["nome"].astype(str).str.strip().str.title()
+    benchmark_df = carica_benchmark()
+    wod_df = carica_wod()
+# ✅ Chiamata centralizzata
+aggiorna_tutti_i_dati()
 
-benchmark_df = carica_benchmark()
-wod_df = carica_wod()
-
+    
 # 🔧 Normalizza le colonne (rimuove spazi e porta a minuscolo)
 test_df.columns = test_df.columns.str.strip().str.lower()
 esercizi_df.columns = esercizi_df.columns.str.strip().str.lower()
@@ -209,48 +212,38 @@ def aggiorna_tutti_i_dati():
     benchmark_df = carica_benchmark()
     wod_df = carica_wod()
 
-# Carica i dati da Google Sheets
-utenti_df = carica_utenti()
-esercizi_df = carica_esercizi()
-test_df = carica_test()
-test_df["nome"] = test_df["nome"].astype(str).str.strip().str.title()
+# --- FUNZIONE DI REFRESH DATI ---
+def aggiorna_tutti_i_dati():
+    global utenti_df, esercizi_df, test_df, benchmark_df, wod_df
+    utenti_df = carica_utenti()
+    esercizi_df = carica_esercizi()
+    test_df = carica_test()
+    test_df["nome"] = test_df["nome"].str.strip().str.title()
+    benchmark_df = carica_benchmark()
+    wod_df = carica_wod()
 
-benchmark_df = carica_benchmark()
-wod_df = carica_wod()
-
-# PULSANTE REFRESH NELLA SIDEBAR
+# --- PULSANTE REFRESH MANUALE (sidebar) ---
 with st.sidebar:
     if st.button("🔄 Refresh Dati"):
         aggiorna_tutti_i_dati()
-        utenti_df = carica_utenti()
-        esercizi_df = carica_esercizi()
-        test_df = carica_test()
-        test_df["nome"] = test_df["nome"].astype(str).str.strip().str.title()
-
-
-        benchmark_df = carica_benchmark()
-        wod_df = carica_wod()
         st.success("✅ Dati aggiornati con successo!")
 
-# Login
-# Login
+# --- BLOCCO LOGIN ---
 if not st.session_state.logged_in:
     ruolo = st.selectbox("Seleziona il tuo ruolo", ["atleta", "coach"])
     nome = st.text_input("Inserisci il tuo nome")
     pin = st.text_input("Inserisci il tuo PIN", type="password")
-    
+
     if st.button("Accedi"):
-        # Normalizza input
         nome_normalizzato = nome.strip().lower()
         pin_normalizzato = pin.strip()
         ruolo_normalizzato = ruolo.strip().lower()
 
-        # Normalizza il DataFrame
+        utenti_df = carica_utenti()
         utenti_df["nome"] = utenti_df["nome"].astype(str).str.strip().str.lower()
         utenti_df["pin"] = utenti_df["pin"].astype(str).str.strip()
         utenti_df["ruolo"] = utenti_df["ruolo"].astype(str).str.strip().str.lower()
 
-        # Filtra
         utente_raw = utenti_df[
             (utenti_df["nome"] == nome_normalizzato) &
             (utenti_df["pin"] == pin_normalizzato) &
@@ -261,16 +254,15 @@ if not st.session_state.logged_in:
             st.session_state.logged_in = True
             st.session_state.user_pin = pin_normalizzato
             st.session_state.utente = utente_raw.squeeze().to_dict()
-
-            # 🔧 Correggi formato nome
             st.session_state.utente["nome"] = st.session_state.utente["nome"].strip().title()
 
-            st.session_state.refresh = True
+            aggiorna_tutti_i_dati()  # 🔄 Dati aggiornati post login
             st.rerun()
         else:
             st.error("Nome, PIN o ruolo non validi. Riprova.")
 
-    st.stop()  # Blocca la pagina finché non premi Accedi
+    st.stop()
+
 
 
 # Tema chiaro/scuro

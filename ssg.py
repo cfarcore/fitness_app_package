@@ -10,8 +10,8 @@ import plotly.graph_objects as go
 
 # --- UTILITY: NORMALIZE FUNCTION ---
 def normalize(s):
-    """Normalizza una stringa per confronto: lowercase e strip."""
-    return str(s).strip().lower() if pd.notnull(s) else ""
+    """Normalizza una stringa per confronto: lowercase, strip, senza spazi/trattini."""
+    return str(s).strip().lower().replace(" ", "").replace("-", "") if pd.notnull(s) else ""
 
 # --- INIZIALIZZAZIONE DATAFRAME VUOTI ---
 utenti_df = pd.DataFrame()
@@ -58,6 +58,7 @@ client = gspread.authorize(creds)
 
 # --- SALVATAGGIO GOOGLE SHEETS ---
 def salva_su_google_sheets(df, file_name, sheet_name, append=False):
+    df = df.fillna("")   # <-- AGGIUNGI QUESTA SUBITO DOPO L'INIZIO!
     sh = client.open(file_name)
     try:
         worksheet = sh.worksheet(sheet_name)
@@ -69,6 +70,7 @@ def salva_su_google_sheets(df, file_name, sheet_name, append=False):
     else:
         worksheet.clear()
         worksheet.update([df.columns.values.tolist()] + df.values.tolist())
+
 
 # --- CACHE LOCALE ---
 CACHE_DIR = "./cache"
@@ -134,36 +136,30 @@ def aggiorna_tutti_i_dati():
     test_df.columns = [str(col).strip().lower() for col in test_df.columns]
     esercizi_df.columns = [str(col).strip().lower() for col in esercizi_df.columns]
     benchmark_df.columns = [str(col).strip().lower() for col in benchmark_df.columns]
+    # --- AGGIUNGI colonne normalizzate ---
     if "esercizio" in benchmark_df.columns:
-        benchmark_df["esercizio"] = benchmark_df["esercizio"].astype(str).str.strip().str.lower()
-    if "nome" in test_df.columns:
-        test_df["nome"] = test_df["nome"].astype(str).str.strip().str.title()
+        benchmark_df["esercizio_norm"] = benchmark_df["esercizio"].apply(normalize)
+    if "categoria" in benchmark_df.columns:
+        benchmark_df["categoria_norm"] = benchmark_df["categoria"].apply(normalize)
     if "esercizio" in test_df.columns:
-        test_df["esercizio"] = test_df["esercizio"].astype(str).str.strip().str.lower()
+        test_df["esercizio_norm"] = test_df["esercizio"].apply(normalize)
+    if "categoria" in test_df.columns:
+        test_df["categoria_norm"] = test_df["categoria"].apply(normalize)
     if "esercizio" in esercizi_df.columns:
-        esercizi_df["esercizio"] = esercizi_df["esercizio"].astype(str).str.strip().str.lower()
+        esercizi_df["esercizio_norm"] = esercizi_df["esercizio"].apply(normalize)
     if "categoria" in esercizi_df.columns:
-        esercizi_df["categoria"] = esercizi_df["categoria"].astype(str).str.strip().str.lower()
-    if 'esercizio' in test_df.columns:
-        test_df = test_df.dropna(how='all')
-        test_df = test_df.dropna(subset=['esercizio'])
-    else:
-        st.error("⚠️ Errore: manca la colonna 'esercizio' nei dati.")
-        st.stop()
+        esercizi_df["categoria_norm"] = esercizi_df["categoria"].apply(normalize)
+    # --- merge su colonne normalizzate ---
     if 'esercizio' in test_df.columns and 'esercizio' in esercizi_df.columns and 'categoria' in esercizi_df.columns:
         test_df = test_df.merge(
-            esercizi_df[['esercizio', 'categoria']],
+            esercizi_df[['esercizio_norm', 'categoria', 'categoria_norm']],
             how='left',
-            on='esercizio'
+            left_on='esercizio_norm',
+            right_on='esercizio_norm'
         )
     else:
         st.error("⚠️ Errore: manca la colonna 'esercizio' o 'categoria' nei dati esercizi.")
         st.stop()
-    st.session_state.test_df = test_df
-    st.session_state.benchmark_df = benchmark_df
-    st.session_state.esercizi_df = esercizi_df
-    st.session_state.wod_df = wod_df
-    st.session_state.utenti_df = utenti_df
 
 # (Qui continua tutta la tua logica: login, sidebar, pagine ecc… come negli esempi sopra)
 
@@ -546,7 +542,9 @@ if pagina == "📅 Calendario WOD":
 
 elif pagina == "➕ Inserisci nuovo test":
     st.subheader("➕ Inserisci un nuovo test")
-    # RESET se richiesto
+    import datetime
+
+    # --- Reset form se richiesto ---
     if st.session_state.get("reset_test_form", False):
         if "categoria" in esercizi_df.columns:
             st.session_state["categoria_input"] = esercizi_df["categoria"].unique()[0]
@@ -567,19 +565,16 @@ elif pagina == "➕ Inserisci nuovo test":
             st.error("❌ La colonna 'categoria' non è presente nel foglio esercizi.")
             st.stop()
 
-    if "categoria" in esercizi_df.columns:
-        categorie_disponibili = esercizi_df["categoria"].unique()
-        categoria_selezionata = st.selectbox("Seleziona categoria", categorie_disponibili, key="categoria_input")
-    else:
-        st.error("❌ La colonna 'categoria' non è presente nel foglio esercizi.")
-        st.stop()
-
-    esercizi_filtrati = esercizi_df[esercizi_df["categoria"] == categoria_selezionata]["esercizio"].unique()
+    categorie_disponibili = esercizi_df["categoria"].unique()
+    categoria_selezionata = st.selectbox("Seleziona categoria", categorie_disponibili, key="categoria_input")
+    categoria_sel_norm = normalize(categoria_selezionata)
+    esercizi_filtrati = esercizi_df[esercizi_df["categoria_norm"] == categoria_sel_norm]["esercizio"].unique()
 
     if "esercizio_input" not in st.session_state or st.session_state["esercizio_input"] not in esercizi_filtrati:
         st.session_state["esercizio_input"] = esercizi_filtrati[0] if len(esercizi_filtrati) > 0 else ""
 
     esercizio = st.selectbox("Esercizio", esercizi_filtrati, key="esercizio_input")
+    esercizio_sel_norm = normalize(esercizio)
 
     if esercizio in esercizi_df["esercizio"].values:
         tipo_valore = esercizi_df[esercizi_df["esercizio"] == esercizio]["tipo_valore"].values[0]
@@ -599,6 +594,30 @@ elif pagina == "➕ Inserisci nuovo test":
     # Genere
     genere = st.selectbox("Genere", ["Maschio", "Femmina", "Altro"], key="genere_input")
 
+    # Recupera il peso corporeo dal profilo atleta selezionato o chiedi di inserirlo
+    default_peso = None
+    if utente and utente.get("ruolo") == "atleta":
+        try:
+            default_peso = float(str(utente["peso_corporeo"]).replace(",", "."))
+        except Exception:
+            default_peso = 70.0
+    else:
+        riga_atleta = utenti_df[utenti_df["nome"] == nome_atleta]
+        if not riga_atleta.empty:
+            try:
+                default_peso = float(str(riga_atleta.iloc[0]["peso_corporeo"]).replace(",", "."))
+            except Exception:
+                default_peso = 70.0
+        else:
+            default_peso = 70.0
+
+    peso_corporeo = st.number_input(
+        "Peso corporeo (kg)",
+        min_value=20.0, max_value=250.0,
+        value=float(default_peso) if default_peso else 70.0,
+        step=0.1
+    )
+
     # Valore inserito
     if tipo_valore == "tempo":
         minuti = st.number_input("Minuti", min_value=0, step=1, key="minuti_input")
@@ -609,31 +628,15 @@ elif pagina == "➕ Inserisci nuovo test":
 
     # Data test
     data_test = st.date_input("Data", key="data_input")
-        # Recupera il peso corporeo dal profilo atleta selezionato
-    peso_corporeo = None
-    if utente and utente.get("ruolo") == "atleta":
-        # Se sei atleta, usa il tuo
-        try:
-            peso_corporeo = float(str(utente["peso_corporeo"]).replace(",", "."))
-        except Exception:
-            peso_corporeo = None
-    else:
-        # Se sei coach, prendi il peso dell’atleta selezionato
-        riga_atleta = utenti_df[utenti_df["nome"] == nome_atleta]
-        if not riga_atleta.empty:
-            try:
-                peso_corporeo = float(str(riga_atleta.iloc[0]["peso_corporeo"]).replace(",", "."))
-            except Exception:
-                peso_corporeo = None
 
     # Calcolo valore relativo
     relativo = None
     if tipo_valore == "kg_rel" and peso_corporeo is not None and peso_corporeo > 0:
-
         try:
             relativo = round(float(valore) / peso_corporeo, 2)
         except:
             relativo = None
+
     if st.button("Salva test"):
         try:
             nuovo_test = {
@@ -668,6 +671,7 @@ elif pagina == "➕ Inserisci nuovo test":
             st.session_state["last_secondi"] = int(secondi)
         st.session_state["reset_test_form"] = True
         st.rerun()
+
 
 elif pagina == "👤 Profilo Atleta":
     st.title("Profilo Atleta")
@@ -869,8 +873,9 @@ elif pagina == "📈 Storico Progressi":
     # Filtro per esercizio
     esercizi_disp = ["Tutti"] + list(storico["esercizio"].unique())
     esercizio_sel = st.selectbox("Seleziona esercizio", esercizi_disp)
+    esercizio_sel_norm = normalize(esercizio_sel)
     if esercizio_sel != "Tutti":
-        storico = storico[storico["esercizio"] == esercizio_sel]
+        storico = storico[storico["esercizio_norm"] == esercizio_sel_norm]
 
     # --- Se la colonna 'livello' non esiste la aggiunge
     if "livello" not in storico.columns:
@@ -947,8 +952,9 @@ elif pagina == "🏆 Classifiche" and utente['ruolo'] == 'coach':
     categorie = esercizi_df['categoria'].unique()
     for cat in categorie:
         st.subheader(f"Categoria: {cat.capitalize()}")
-        esercizi_cat = esercizi_df[esercizi_df['categoria'] == cat]['esercizio'].tolist()
-        test_cat = test_df[test_df['esercizio'].isin(esercizi_cat)]
+        cat_norm = normalize(cat)
+        esercizi_cat = esercizi_df[esercizi_df['categoria_norm'] == cat_norm]['esercizio_norm'].tolist()
+        test_cat = test_df[test_df['esercizio_norm'].isin(esercizi_cat)]
 
         # --- CLASSIFICHE NUMERICHE (kg, reps, ecc) - best value ---
         num_tests = test_cat[test_cat['tipo_valore'] != 'tempo'].copy()
@@ -1030,7 +1036,7 @@ if "last_nome" in st.session_state and "last_esercizio" in st.session_state:
 
         # Recupera benchmark
         benchmark = benchmark_df[
-            (benchmark_df['esercizio'].astype(str).str.strip().str.lower() == esercizio_sel_norm) &
+            (benchmark_df['esercizio_norm'] == esercizio_sel_norm) &
             (benchmark_df['genere'] == genere)
         ]
 
@@ -1364,14 +1370,15 @@ elif pagina == "📊 Grafici":
         # Scegli categoria/esercizio
         categorie_disponibili = esercizi_df["categoria"].unique()
         categoria_selezionata = st.selectbox("Seleziona categoria", categorie_disponibili)
-        esercizi_filtrati = esercizi_df[esercizi_df["categoria"] == categoria_selezionata]["esercizio"].unique()
+        categoria_sel_norm = normalize(categoria_selezionata)
+        esercizi_filtrati = esercizi_df[esercizi_df["categoria_norm"] == cat_norm]["esercizio"].unique()
         esercizio_selezionato = st.selectbox("Seleziona esercizio", esercizi_filtrati)
 
         # Filtro i test in base a chi voglio vedere
         if atleta_selezionato == "Tutti gli atleti":
-            test_selezionati = test_df[test_df['esercizio'] == esercizio_selezionato]
+            test_selezionati = test_df[test_df['esercizio_norm'] == esercizio_sel_norm]
         else:
-            test_selezionati = test_df[(test_df['esercizio'] == esercizio_selezionato) & (test_df['nome'] == atleta_selezionato)]
+            test_selezionati = test_df[(test_df['esercizio_norm'] == esercizio_sel_norm) & (test_df['nome'] == atleta_selezionato)]
 
         risultati = []
         nomi_barre = []
@@ -1449,8 +1456,9 @@ elif pagina == "📊 Grafici":
         radar_labels = []
         radar_values = []
         for categoria in tutte_categorie:
-            esercizi_cat = esercizi_df[esercizi_df['categoria'] == categoria]['esercizio']
-            test_cat = test_df[(test_df['nome'] == atleta_radar) & (test_df['esercizio'].isin(esercizi_cat))]
+            cat_norm = normalize(categoria)
+            esercizi_cat = esercizi_df[esercizi_df['categoria_norm'] == cat_norm]['esercizio_norm']
+            test_cat = test_df[(test_df['nome'] == atleta_radar) & (test_df['esercizio_norm'].isin(esercizi_cat))]
             livelli_cat = []
             for _, row in test_cat.iterrows():
                 benchmark = benchmark_df[
@@ -1547,20 +1555,34 @@ elif pagina == "📊 Grafici":
         esercizi_macro = esercizi_df[esercizi_df["categoria"] == macroarea_sel]["esercizio"].unique()
         esercizio_sel = st.selectbox("Seleziona esercizio", esercizi_macro)
 
-        esercizio_sel_norm = normalize(esercizio_sel)  # <- ora è definito
+        # --- Funzione normalizzazione esercizio ---
+        def normalize(s):
+            return str(s).strip().lower().replace(" ", "").replace("-", "")
 
-        # Ora puoi filtrare il test_esercizio
+        # Assicurati di avere colonne normalizzate
+        if "esercizio_norm" not in test_df.columns:
+            test_df['esercizio_norm'] = test_df['esercizio'].apply(normalize)
+        if "esercizio_norm" not in benchmark_df.columns:
+            benchmark_df['esercizio_norm'] = benchmark_df['esercizio'].apply(normalize)
+        if "categoria_norm" not in esercizi_df.columns:
+            esercizi_df['categoria_norm'] = esercizi_df['categoria'].apply(normalize)
+
+        # Dopo aver scelto macroarea e esercizio_sel...
+        esercizio_sel_norm = normalize(esercizio_sel)
+
         test_esercizio = test_df[
-
             (test_df['nome'] == utente['nome']) &
-            (test_df['esercizio'] == esercizio_sel)
+            (test_df['esercizio_norm'] == esercizio_sel_norm)
         ]
-        livello_num = 1  # Default “base”
+
+        livello_mapping = {"base": 1, "principiante": 2, "intermedio": 3, "buono": 4, "elite": 5}
+        livello = "Non valutabile"    # <--- qui inizializzo
+        livello_num = 1               # Default base
 
         if not test_esercizio.empty:
             row = test_esercizio.sort_values("data").iloc[-1]
             benchmark = benchmark_df[
-                (benchmark_df['esercizio'].astype(str).str.strip().str.lower() == esercizio_sel_norm) &
+                (benchmark_df['esercizio_norm'] == esercizio_sel_norm) &
                 (benchmark_df['genere'] == utente['genere'])
             ]
             if not benchmark.empty:
@@ -1587,7 +1609,7 @@ elif pagina == "📊 Grafici":
                 for livello_nome in reversed(list(livello_mapping.keys())):
                     soglia = benchmark[livello_nome]
                     try:
-                        soglia = float(soglia) if tipo != "tempo" else int(soglia.split(":")[0]) * 60 + int(soglia.split(":")[1]) if ":" in str(soglia) else float(soglia)
+                        soglia = float(soglia)
                     except Exception:
                         pass
                     if tipo == "tempo":
@@ -1601,48 +1623,45 @@ elif pagina == "📊 Grafici":
                             livello_num = livello_mapping[livello_nome]
                             break
 
-            # --- GRAFICO NEON (barra crescente, spessa e colorata in base al livello) ---
-            import plotly.graph_objects as go
-            colori_gradiente = [
-                "#ff3333",   # base
-                "#ff9900",   # principiante
-                "#ffee00",   # intermedio
-                "#99ff33",   # buono
-                "#33cc33"    # elite
-            ]
-            colore_barra = colori_gradiente[livello_num - 1]
+        # --- GRAFICO NEON (barra crescente, spessa e colorata in base al livello) ---
+        import plotly.graph_objects as go
+        colori_gradiente = [
+            "#ff3333",   # base
+            "#ff9900",   # principiante
+            "#ffee00",   # intermedio
+            "#99ff33",   # buono
+            "#33cc33"    # elite
+        ]
+        colore_barra = colori_gradiente[livello_num - 1]
 
-            fig = go.Figure(go.Bar(
-                x=[livello_num],
-                y=[""],  # o ["Livello"]
-                orientation='h',
-                marker=dict(
-                    color=colore_barra,
-                    line=dict(color="black", width=6)
-                ),
-                width=[0.7],  # più spessa!
-                text=[livello],
-                textposition="outside"
-            ))
-            fig.update_layout(
-                xaxis=dict(
-                    range=[1, 5],
-                    tickvals=[1, 2, 3, 4, 5],
-                    ticktext=["Base", "Principiante", "Intermedio", "Buono", "Elite"],
-                    showgrid=False
-                ),
-                yaxis=dict(showticklabels=False, showgrid=False),
-                plot_bgcolor='rgba(0,0,0,0)',
-                height=150,
-                margin=dict(l=30, r=30, t=20, b=20),
-                showlegend=False,
-                bargap=0.18
-            )
-            st.plotly_chart(fig, use_container_width=True)
-            st.markdown(f"<div style='text-align:center;font-size:1.3em;'><b>Livello attuale:</b> {livello}</div>", unsafe_allow_html=True)
-        else:
-            st.info("Non ci sono test disponibili per questo esercizio.")
-
+        fig = go.Figure(go.Bar(
+            x=[livello_num],
+            y=[""],  # o ["Livello"]
+            orientation='h',
+            marker=dict(
+                color=colore_barra,
+                line=dict(color="black", width=6)
+            ),
+            width=[0.7],  # più spessa!
+            text=[livello],
+            textposition="outside"
+        ))
+        fig.update_layout(
+            xaxis=dict(
+                range=[1, 5],
+                tickvals=[1, 2, 3, 4, 5],
+                ticktext=["Base", "Principiante", "Intermedio", "Buono", "Elite"],
+                showgrid=False
+            ),
+            yaxis=dict(showticklabels=False, showgrid=False),
+            plot_bgcolor='rgba(0,0,0,0)',
+            height=150,
+            margin=dict(l=30, r=30, t=20, b=20),
+            showlegend=False,
+            bargap=0.18
+        )
+        st.plotly_chart(fig, use_container_width=True)
+        st.markdown(f"<div style='text-align:center;font-size:1.3em;'><b>Livello attuale:</b> {livello}</div>", unsafe_allow_html=True)
 
         st.markdown("---")
         st.markdown("""
@@ -1658,12 +1677,13 @@ elif pagina == "📊 Grafici":
         radar_values = []
         macroaree = esercizi_df["categoria"].unique()
         for categoria in macroaree:
-            esercizi_cat = esercizi_df[esercizi_df['categoria'] == categoria]['esercizio']
-            test_cat = test_df[(test_df['nome'] == utente['nome']) & (test_df['esercizio'].isin(esercizi_cat))]
+            cat_norm = normalize(categoria)
+            esercizi_cat = esercizi_df[esercizi_df['categoria_norm'] == cat_norm]['esercizio_norm']
+            test_cat = test_df[(test_df['nome'] == utente['nome']) & (test_df['esercizio_norm'].isin(esercizi_cat))]
             livelli_cat = []
             for _, row in test_cat.iterrows():
                 benchmark = benchmark_df[
-                    (benchmark_df['esercizio'] == row['esercizio']) &
+                    (benchmark_df['esercizio_norm'] == row['esercizio_norm']) &
                     (benchmark_df['genere'] == row['genere'])
                 ]
                 benchmark = benchmark.squeeze() if not benchmark.empty else None

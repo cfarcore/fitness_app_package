@@ -58,7 +58,7 @@ client = gspread.authorize(creds)
 
 # --- SALVATAGGIO GOOGLE SHEETS ---
 def salva_su_google_sheets(df, file_name, sheet_name, append=False):
-    df = df.fillna("")   # <-- AGGIUNGI QUESTA SUBITO DOPO L'INIZIO!
+    df = df.fillna("")
     sh = client.open(file_name)
     try:
         worksheet = sh.worksheet(sheet_name)
@@ -68,8 +68,15 @@ def salva_su_google_sheets(df, file_name, sheet_name, append=False):
         last_row = df.iloc[-1].values.tolist()
         worksheet.append_row(last_row)
     else:
+        # BLOCCO DI SICUREZZA!
+        if len(df) == 0:
+            worksheet.clear()
+            worksheet.update([df.columns.values.tolist()])
+            st.warning("Foglio aggiornato solo con intestazioni (nessun dato da salvare).")
+            return
         worksheet.clear()
         worksheet.update([df.columns.values.tolist()] + df.values.tolist())
+
 
 
 # --- CACHE LOCALE ---
@@ -532,13 +539,19 @@ if pagina == "📅 Calendario WOD":
         st.subheader("🗑️ Elimina un WOD")
         if not wod_df.empty:
             wod_df["info"] = wod_df.apply(lambda x: f"{x['data']} - {x['nome']}", axis=1)
-            wod_da_eliminare = st.selectbox("Seleziona un WOD da eliminare", wod_df["info"].unique(), key="elimina_wod_select")
+            wod_da_eliminare = st.selectbox(
+                "Seleziona un WOD da eliminare", wod_df["info"].unique(), key="elimina_wod_select"
+            )
             if st.button("Elimina WOD"):
+                # Trova indice da eliminare
                 index_to_delete = wod_df[wod_df["info"] == wod_da_eliminare].index[0]
-                wod_df = wod_df.drop(index=index_to_delete)
+                # Elimina, resetta indice e riempi NaN
+                wod_df = wod_df.drop(index=index_to_delete).reset_index(drop=True).fillna("")
                 salva_su_google_sheets(wod_df, "wod", "wod")
                 wod_df = carica_wod()
                 st.success("WOD eliminato con successo!")
+        else:
+            st.info("Non ci sono WOD da eliminare.")
 
 elif pagina == "➕ Inserisci nuovo test":
     st.subheader("➕ Inserisci un nuovo test")

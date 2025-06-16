@@ -56,9 +56,16 @@ creds = service_account.Credentials.from_service_account_info(
 )
 client = gspread.authorize(creds)
 
-# --- SALVATAGGIO GOOGLE SHEETS ---
 def salva_su_google_sheets(df, file_name, sheet_name, append=False):
-    df = df.fillna("")
+    import numpy as np
+
+    # Converte tutto in stringhe e sostituisce NaN o None con ""
+    df = df.copy()
+    for col in df.columns:
+        df[col] = df[col].apply(lambda x: "" if pd.isna(x) or x is None or (isinstance(x, float) and np.isnan(x)) else str(x))
+
+    df = df.fillna("").reset_index(drop=True)
+
     sh = client.open(file_name)
     try:
         worksheet = sh.worksheet(sheet_name)
@@ -68,7 +75,6 @@ def salva_su_google_sheets(df, file_name, sheet_name, append=False):
         last_row = df.iloc[-1].values.tolist()
         worksheet.append_row(last_row)
     else:
-        # BLOCCO DI SICUREZZA!
         if len(df) == 0:
             worksheet.clear()
             worksheet.update([df.columns.values.tolist()])
@@ -76,6 +82,7 @@ def salva_su_google_sheets(df, file_name, sheet_name, append=False):
             return
         worksheet.clear()
         worksheet.update([df.columns.values.tolist()] + df.values.tolist())
+
 
 
 

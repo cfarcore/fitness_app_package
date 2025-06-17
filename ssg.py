@@ -13,6 +13,7 @@ def normalize(s):
     """Normalizza una stringa per confronto: lowercase, strip, senza spazi/trattini."""
     return str(s).strip().lower().replace(" ", "").replace("-", "") if pd.notnull(s) else ""
 
+from classifica_workout import mostra_classifica_wod
 # --- INIZIALIZZAZIONE DATAFRAME VUOTI ---
 utenti_df = pd.DataFrame()
 esercizi_df = pd.DataFrame()
@@ -142,9 +143,18 @@ def aggiorna_tutti_i_dati():
     global utenti_df, esercizi_df, test_df, benchmark_df, wod_df
     utenti_df = carica_utenti()
     esercizi_df = carica_esercizi()
+    esercizi_df["categoria_norm"] = esercizi_df["categoria"].astype(str).str.strip().str.lower().str.replace(" ", "")
+    esercizi_df["esercizio_norm"] = esercizi_df["esercizio"].astype(str).str.strip().str.lower().str.replace(" ", "")
     test_df = carica_test()
+    test_df["esercizio_norm"] = test_df["esercizio"].astype(str).str.strip().str.lower().str.replace(" ", "")
     benchmark_df = carica_benchmark()
+    benchmark_df["esercizio_norm"] = benchmark_df["esercizio"].astype(str).str.strip().str.lower().str.replace(" ", "")
+    benchmark_df["categoria_norm"] = benchmark_df["esercizio"].map(
+        lambda e: esercizi_df.set_index("esercizio")["categoria"].get(e, "") if e in esercizi_df["esercizio"].values else ""
+    ).astype(str).str.strip().str.lower().str.replace(" ", "")
     wod_df = carica_wod()
+
+
 
     # Normalizzazione colonne e valori
     test_df.columns = [str(col).strip().lower() for col in test_df.columns]
@@ -248,7 +258,7 @@ if utente is not None:
             "🏠 Dashboard", "👤 Profilo Atleta", "📅 Calendario WOD", "➕ Inserisci nuovo test",
             "⚙️ Gestione esercizi", "📋 Storico Dati utenti", "📊 Bilanciamento Atleti",
             "➕ Aggiungi Utente", "⚙️ Gestione benchmark", "📊 Grafici", "📈 Storico Progressi",
-            "📒 WOD", "🏆 Classifiche"
+            "📒 WOD", "🏆 Classifiche", "🏅 Classifica Workout" 
         ]
     else:
         st.session_state["pagine_sidebar"] = [
@@ -382,8 +392,8 @@ if pagina == "🏠 Dashboard":
             for _, row in latest_tests.iterrows():
                 # Calcolo livello (devi adattare questo blocco al tuo schema benchmark!)
                 benchmark = benchmark_df[
-                    (benchmark_df['esercizio'] == row['esercizio']) &
-                    (benchmark_df['genere'] == utente['genere'])
+                    (benchmark_df['esercizio_norm'] == row['esercizio_norm']) &
+                    (benchmark_df['genere'] == row['genere'])
                 ]
                 benchmark = benchmark.squeeze() if not benchmark.empty else None
                 livello = "Non valutabile"
@@ -774,14 +784,105 @@ elif pagina == "📋 Storico Dati utenti" and utente['ruolo'] == 'coach':
     st.title("Storico Dati utenti")
     # ...existing code...
 
-elif pagina == "📊 Bilanciamento Atleti" and utente['ruolo'] == 'coach':
+if pagina == "📊 Bilanciamento Atleti" and utente['ruolo'] == 'coach':
     st.title("Bilanciamento Atleti")
     st.write("Bilancia i carichi di lavoro degli atleti.")
-    st.dataframe(test_df)  # Mostra i dati dei test per analisi del bilanciamento
+
+    # --- Funzione per il conteggio dei test per macro-area ---
+    def conta_test_per_macroarea(test_df, esercizi_df):
+        esercizio2cat = esercizi_df.set_index('esercizio')['categoria'].to_dict()
+        test_df['macroarea'] = test_df['esercizio'].map(esercizio2cat)
+        pivot = pd.pivot_table(
+            test_df,
+            index='nome',
+            columns='macroarea',
+            values='esercizio',
+            aggfunc='count',
+            fill_value=0
+        )
+        pivot['Totale test'] = pivot.sum(axis=1)
+        return pivot
+
+    # --- Calcola la tabella bilanciamento e mostra ---
+    tabella_bilanciamento = conta_test_per_macroarea(test_df, esercizi_df)
+    st.dataframe(tabella_bilanciamento, use_container_width=True)
+
+    # Funzione per colorare la tabella in base al numero di test fatti
+    def highlight_cells(val):
+        if val == 0:
+            color = '#ffcccc'  # rosso chiaro se zero test
+        elif val < 3:
+            color = '#fff5ba'  # giallo se pochi test
+        else:
+            color = '#ccffcc'  # verde se OK
+        return f'background-color: {color}'
+
+    pivot = conta_test_per_macroarea(test_df, esercizi_df)
+
+    # Usa st.dataframe per l'interattività, st.write(pivot.style) per i colori
+    st.write("### Tabella Bilanciamento Atleti (colorata):")
+    st.dataframe(
+        pivot.style.applymap(highlight_cells, subset=pivot.columns[:-1])  # solo le macroaree, non il totale
+    )
+    import io
+
+    csv = pivot.to_csv().encode()
+    st.download_button(
+        label="📥 Scarica Tabella (CSV)",
+        data=csv,
+        file_name='bilanciamento_atleti.csv',
+        mime='text/csv',
+    )
+
 
 elif pagina == "➕ Aggiungi Utente" and utente['ruolo'] == 'coach':
     st.title("Aggiungi Utente")
-    # ...existing code...
+
+    with st.form("form_nuovo_utente"):
+        nome = st.text_input("Nome e Cognome")
+        pin = st.text_input("PIN (numerico o stringa)", max_chars=6)
+        ruolo = st.selectbox("Ruolo", ["atleta", "coach"])
+        data_nascita = st.date_input("Data di nascita")
+        peso = st.number_input("Peso (kg)", min_value=20.0, max_value=250.0, step=0.1)
+        altezza = st.number_input("Altezza (cm)", min_value=100.0, max_value=230.0, step=0.1)
+        genere = st.selectbox("Genere", ["Maschio", "Femmina", "Altro"])
+        email = st.text_input("Email")
+        telefono = st.text_input("Telefono")
+        obiettivi = st.text_area("Obiettivi")
+        note_mediche = st.text_area("Note mediche")
+        data_iscrizione = st.date_input("Data iscrizione", value=pd.to_datetime("today"))
+        scadenza_certificato = st.date_input("Scadenza certificato")
+        foto_profilo = st.text_input("Link foto profilo (opzionale)")
+
+        submitted = st.form_submit_button("Aggiungi utente")
+
+        if submitted:
+            try:
+                utenti_df = carica_utenti()
+
+                nuovo_utente = {
+                    "nome": nome.strip().title(),
+                    "pin": pin,
+                    "ruolo": ruolo,
+                    "data_nascita": data_nascita.strftime("%Y-%m-%d"),
+                    "peso": peso,
+                    "altezza": altezza,
+                    "genere": genere,
+                    "email": email,
+                    "telefono": telefono,
+                    "obiettivi": obiettivi,
+                    "note_mediche": note_mediche,
+                    "data_iscrizione": data_iscrizione.strftime("%Y-%m-%d"),
+                    "scadenza_certificato": scadenza_certificato.strftime("%Y-%m-%d"),
+                    "foto_profilo": foto_profilo
+                }
+
+                utenti_df = pd.concat([utenti_df, pd.DataFrame([nuovo_utente])], ignore_index=True)
+                salva_su_google_sheets(utenti_df, "utenti", "utenti", append=False)  # append=False per riscrivere il foglio solo con il nuovo utente
+                st.success(f"Utente '{nome}' aggiunto con successo!")
+            except Exception as e:
+                st.error(f"Errore durante il salvataggio: {e}")
+
 
 elif pagina == "⚙️ Gestione benchmark" and utente['ruolo'] == 'coach':
     st.title("Gestione Benchmark")
@@ -800,8 +901,8 @@ elif pagina == "⚙️ Gestione benchmark" and utente['ruolo'] == 'coach':
         # Calcola il livello per OGNI test inserito da tutti
         for idx, row in test_categoria.iterrows():
             benchmark = benchmark_df[
-                (benchmark_df["esercizio"] == row["esercizio"]) &
-                (benchmark_df["genere"] == row["genere"])
+                (benchmark_df['esercizio_norm'] == row['esercizio_norm']) &
+                (benchmark_df['genere'] == row['genere'])
             ]
             benchmark = benchmark.squeeze() if not benchmark.empty else None
             livello = "base"  # default: base
@@ -958,7 +1059,11 @@ elif pagina == "📈 Storico Progressi":
                 st.plotly_chart(fig, use_container_width=True)
     else:
         st.info("Nessun test disponibile per i filtri selezionati.")
-
+elif pagina == "🏅 Classifica Workout":
+    st.title("Classifica Workout")
+    wod_list = esercizi_df[esercizi_df['tipo_valore'].isin(['tempo', 'reps', 'kg_rel'])]['esercizio'].unique()
+    wod_selezionato = st.selectbox("Seleziona un WOD", wod_list)
+    mostra_classifica_wod(test_df, wod_selezionato, esercizi_df)
 
 if pagina == "📒 WOD":
     st.title("WOD")
@@ -1056,8 +1161,8 @@ if "last_nome" in st.session_state and "last_esercizio" in st.session_state:
 
         # Recupera benchmark
         benchmark = benchmark_df[
-            (benchmark_df['esercizio_norm'] == esercizio_sel_norm) &
-            (benchmark_df['genere'] == genere)
+            (benchmark_df['esercizio_norm'] == row['esercizio_norm']) &
+            (benchmark_df['genere'] == row['genere'])
         ]
 
         if benchmark.empty:
@@ -1391,21 +1496,26 @@ elif pagina == "📊 Grafici":
         categorie_disponibili = esercizi_df["categoria"].unique()
         categoria_selezionata = st.selectbox("Seleziona categoria", categorie_disponibili)
         categoria_sel_norm = normalize(categoria_selezionata)
-        esercizi_filtrati = esercizi_df[esercizi_df["categoria_norm"] == cat_norm]["esercizio"].unique()
+        esercizi_filtrati = esercizi_df[esercizi_df["categoria_norm"] == categoria_sel_norm]["esercizio"].unique()
         esercizio_selezionato = st.selectbox("Seleziona esercizio", esercizi_filtrati)
+        esercizio_sel_norm = normalize(esercizio_selezionato)   # <--- QUESTA RIGA!
 
         # Filtro i test in base a chi voglio vedere
         if atleta_selezionato == "Tutti gli atleti":
             test_selezionati = test_df[test_df['esercizio_norm'] == esercizio_sel_norm]
         else:
-            test_selezionati = test_df[(test_df['esercizio_norm'] == esercizio_sel_norm) & (test_df['nome'] == atleta_selezionato)]
+            test_selezionati = test_df[
+                (test_df['esercizio_norm'] == esercizio_sel_norm) &
+                (test_df['nome'] == atleta_selezionato)
+            ]
+
 
         risultati = []
         nomi_barre = []
 
         for _, row in test_selezionati.iterrows():
             benchmark = benchmark_df[
-                (benchmark_df['esercizio'] == row['esercizio']) &
+                (benchmark_df['esercizio_norm'] == row['esercizio_norm']) &
                 (benchmark_df['genere'] == row['genere'])
             ]
             benchmark = benchmark.squeeze() if not benchmark.empty else None
@@ -1482,7 +1592,7 @@ elif pagina == "📊 Grafici":
             livelli_cat = []
             for _, row in test_cat.iterrows():
                 benchmark = benchmark_df[
-                    (benchmark_df['esercizio'] == row['esercizio']) &
+                    (benchmark_df['esercizio_norm'] == row['esercizio_norm']) &
                     (benchmark_df['genere'] == row['genere'])
                 ]
                 benchmark = benchmark.squeeze() if not benchmark.empty else None
@@ -1588,8 +1698,7 @@ elif pagina == "📊 Grafici":
             esercizi_df['categoria_norm'] = esercizi_df['categoria'].apply(normalize)
 
         # Dopo aver scelto macroarea e esercizio_sel...
-        esercizio_sel_norm = normalize(esercizio_sel)
-
+        esercizio_sel_norm = esercizio_sel.strip().lower().replace(" ", "")
         test_esercizio = test_df[
             (test_df['nome'] == utente['nome']) &
             (test_df['esercizio_norm'] == esercizio_sel_norm)

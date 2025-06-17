@@ -12,7 +12,7 @@ import plotly.graph_objects as go
 def normalize(s):
     """Normalizza una stringa per confronto: lowercase, strip, senza spazi/trattini."""
     return str(s).strip().lower().replace(" ", "").replace("-", "") if pd.notnull(s) else ""
-
+from graficicoach import mostra_grafici_coach
 from classifica_workout import mostra_classifica_wod
 # --- INIZIALIZZAZIONE DATAFRAME VUOTI ---
 utenti_df = pd.DataFrame()
@@ -258,7 +258,7 @@ if utente is not None:
             "🏠 Dashboard", "👤 Profilo Atleta", "📅 Calendario WOD", "➕ Inserisci nuovo test",
             "⚙️ Gestione esercizi", "📋 Storico Dati utenti", "📊 Bilanciamento Atleti",
             "➕ Aggiungi Utente", "⚙️ Gestione benchmark", "📊 Grafici", "📈 Storico Progressi",
-            "📒 WOD", "🏆 Classifiche", "🏅 Classifica Workout" 
+            "📒 WOD", "🏆 Classifiche", "🏅 Classifica Workout","📊 Graf Coach"
         ]
     else:
         st.session_state["pagine_sidebar"] = [
@@ -927,19 +927,23 @@ elif pagina == "⚙️ Gestione benchmark" and utente['ruolo'] == 'coach':
                 # Calcolo livello (tempo: <= soglia, altrimenti >= soglia)
                 for livello_nome in reversed(list(livello_mapping.keys())):
                     soglia = benchmark[livello_nome]
-                    try:
-                        soglia = float(soglia) if tipo != "tempo" else int(soglia.split(":")[0]) * 60 + int(soglia.split(":")[1])
-                    except Exception:
-                        pass
                     if tipo == "tempo":
-                        if val is not None and val <= soglia:
+                        val_sec = tempo_to_sec(row["valore"])
+                        soglia_sec = tempo_to_sec(soglia)
+                        if val_sec is not None and soglia_sec is not None and val_sec <= soglia_sec:
                             livello = livello_nome
                             break
                     else:
-                        if val is not None and val >= soglia:
+                        try:
+                            soglia = float(soglia)
+                            val_num = float(row["valore"])
+                        except Exception:
+                            continue
+                        if val_num is not None and val_num >= soglia:
                             livello = livello_nome
                             break
-            livelli.append(livello_mapping.get(livello, 1))  # se non trova, "base"=1
+                livelli.append(livello_mapping.get(livello, 1))  # se non trova, "base"=1
+
 
         # Media livelli per categoria
         if livelli:
@@ -1116,6 +1120,10 @@ elif pagina == "🏆 Classifiche" and utente['ruolo'] == 'coach':
             st.dataframe(classifica_tempo)
         else:
             st.info("Nessun test a tempo per questa categoria.")
+elif pagina == "📊 Graf Coach":
+    from graficicoach import mostra_grafici_coach
+    mostra_grafici_coach(test_df, esercizi_df, benchmark_df, utenti_df)
+
 
 # --- Debug (facoltativo) ---
 DEBUG = os.environ.get("DEBUG", "0") == "1"

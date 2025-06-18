@@ -404,7 +404,8 @@ if pagina == "🏠 Dashboard":
                 # Calcolo livello (devi adattare questo blocco al tuo schema benchmark!)
                 benchmark = benchmark_df[
                     (benchmark_df['esercizio_norm'] == row['esercizio_norm']) &
-                    (benchmarkDf['genere'] == row['genere'])
+                    (benchmark_df['genere'] == row['genere'])
+
                 ]
                 benchmark = benchmark.squeeze() if not benchmark.empty else None
                 livello = "Non valutabile"
@@ -1181,7 +1182,7 @@ if "last_nome" in st.session_state and "last_esercizio" in st.session_state:
         # Recupera benchmark
         benchmark = benchmark_df[
             (benchmark_df['esercizio_norm'] == row['esercizio_norm']) &
-            (benchmarkDf['genere'] == row['genere'])
+            (benchmark_df['genere'] == row['genere'])
         ]
 
         if benchmark.empty:
@@ -1535,7 +1536,7 @@ elif pagina == "📊 Grafici":
         for _, row in test_selezionati.iterrows():
             benchmark = benchmark_df[
                 (benchmark_df['esercizio_norm'] == row['esercizio_norm']) &
-                (benchmarkDf['genere'] == row['genere'])
+                (benchmark_df['genere'] == row['genere'])
             ]
             benchmark = benchmark.squeeze() if not benchmark.empty else None
             livello = "base"
@@ -1612,7 +1613,7 @@ elif pagina == "📊 Grafici":
             for _, row in test_cat.iterrows():
                 benchmark = benchmark_df[
                     (benchmark_df['esercizio_norm'] == row['esercizio_norm']) &
-                    (benchmarkDf['genere'] == row['genere'])
+                    (benchmark_df['genere'] == row['genere'])
                 ]
                 benchmark = benchmark.squeeze() if not benchmark.empty else None
                 livello_num = 0
@@ -1731,7 +1732,7 @@ elif pagina == "📊 Grafici":
             row = test_esercizio.sort_values("data").iloc[-1]
             benchmark = benchmark_df[
                 (benchmark_df['esercizio_norm'] == esercizio_sel_norm) &
-                (benchmarkDf['genere'] == utente['genere'])
+                (benchmark_df['genere'] == utente['genere'])
             ]
             if not benchmark.empty:
                 benchmark = benchmark.iloc[0]
@@ -1757,17 +1758,17 @@ elif pagina == "📊 Grafici":
                 for livello_nome in reversed(list(livello_mapping.keys())):
                     soglia = benchmark[livello_nome]
                     try:
-                        soglia = float(soglia) if tipo != "tempo" else int(soglia.split(":")[0]) * 60 + int(soglia.split(":")[1]) if ":" in str(soglia) else float(soglia)
+                        soglia = float(soglia)
                     except Exception:
                         pass
                     if tipo == "tempo":
                         if val is not None and val <= soglia:
-                            livello = livello_nome
+                            livello = livello_nome.capitalize()
                             livello_num = livello_mapping[livello_nome]
                             break
                     else:
                         if val is not None and val >= soglia:
-                            livello = livello_nome
+                            livello = livello_nome.capitalize()
                             livello_num = livello_mapping[livello_nome]
                             break
 
@@ -1832,7 +1833,7 @@ elif pagina == "📊 Grafici":
             for _, row in test_cat.iterrows():
                 benchmark = benchmark_df[
                     (benchmark_df['esercizio_norm'] == row['esercizio_norm']) &
-                    (benchmarkDf['genere'] == row['genere'])
+                    (benchmark_df['genere'] == row['genere'])
                 ]
                 benchmark = benchmark.squeeze() if not benchmark.empty else None
                 livello_num = 0

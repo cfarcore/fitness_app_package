@@ -14,6 +14,8 @@ def normalize(s):
     return str(s).strip().lower().replace(" ", "").replace("-", "") if pd.notnull(s) else ""
 from graficicoach import mostra_grafici_coach
 from classifica_workout import mostra_classifica_wod
+from esercizi import mostra_gestione_esercizi
+
 # --- INIZIALIZZAZIONE DATAFRAME VUOTI ---
 utenti_df = pd.DataFrame()
 esercizi_df = pd.DataFrame()
@@ -157,6 +159,7 @@ def aggiorna_tutti_i_dati():
 
 
     # Normalizzazione colonne e valori
+    # Normalizzazione colonne e valori
     test_df.columns = [str(col).strip().lower() for col in test_df.columns]
     esercizi_df.columns = [str(col).strip().lower() for col in esercizi_df.columns]
     benchmark_df.columns = [str(col).strip().lower() for col in benchmark_df.columns]
@@ -173,6 +176,13 @@ def aggiorna_tutti_i_dati():
         esercizi_df["esercizio_norm"] = esercizi_df["esercizio"].apply(normalize)
     if "categoria" in esercizi_df.columns:
         esercizi_df["categoria_norm"] = esercizi_df["categoria"].apply(normalize)
+
+    # --- RIMUOVI eventuali colonne duplicate PRIMA del merge! ---
+    colonne_da_rimuovere = ['categoria', 'categoria_norm']
+    for col in colonne_da_rimuovere:
+        if col in test_df.columns:
+            test_df = test_df.drop(columns=[col])
+
     # --- merge su colonne normalizzate ---
     if 'esercizio' in test_df.columns and 'esercizio' in esercizi_df.columns and 'categoria' in esercizi_df.columns:
         test_df = test_df.merge(
@@ -184,6 +194,7 @@ def aggiorna_tutti_i_dati():
     else:
         st.error("⚠️ Errore: manca la colonna 'esercizio' o 'categoria' nei dati esercizi.")
         st.stop()
+
 
 # (Qui continua tutta la tua logica: login, sidebar, pagine ecc… come negli esempi sopra)
 
@@ -255,10 +266,10 @@ utente = st.session_state.get("utente", None)
 if utente is not None:
     if utente["ruolo"] == "coach":
         st.session_state["pagine_sidebar"] = [
-            "🏠 Dashboard", "👤 Profilo Atleta", "📅 Calendario WOD", "➕ Inserisci nuovo test",
+            "🏠 Dashboard", "📅 Calendario WOD",
             "⚙️ Gestione esercizi", "📋 Storico Dati utenti", "📊 Bilanciamento Atleti",
             "➕ Aggiungi Utente", "⚙️ Gestione benchmark", "📊 Grafici", "📈 Storico Progressi",
-            "📒 WOD", "🏆 Classifiche", "🏅 Classifica Workout","📊 Graf Coach"
+            "📒 WOD", "🏆 Classifiche", "🏅 Classifica Workout","📊 Graf Coach",➕ 
         ]
     else:
         st.session_state["pagine_sidebar"] = [
@@ -777,8 +788,8 @@ elif pagina == "👤 Profilo Atleta":
         st.rerun()
 
 elif pagina == "⚙️ Gestione esercizi" and utente['ruolo'] == 'coach':
-    st.title("Gestione Esercizi")
-    # ...existing code...
+    from esercizi import mostra_gestione_esercizi
+    mostra_gestione_esercizi()
 
 elif pagina == "📋 Storico Dati utenti" and utente['ruolo'] == 'coach':
     st.title("Storico Dati utenti")
